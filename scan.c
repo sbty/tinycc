@@ -49,6 +49,8 @@ static int skip(void)
     return (c);
 }
 
+// 入力ファイルをスキャンして整数リテラルを返す
+// テキスト内の文字列として値を保存する
 static int scanint(int c)
 {
     int k, val = 0;
@@ -78,6 +80,7 @@ int scan(struct token *t)
     switch (c)
     {
     case EOF:
+        t->token = T_EOF;
         return (0);
     case '+':
         t->token = T_PLUS;
@@ -94,12 +97,18 @@ int scan(struct token *t)
 
     default:
 
-        // 数値であれば整数値が含まれているかスキャン
+        // 整数であればリテラルの整数値をスキャン
         if (isdigit(c))
         {
             t->intvalue = scanint(c);
             t->token = T_INTLIT;
             break;
         }
+
+        printf("認識できない文字 %c on line %d\n", c, Line);
+        exit(1);
     }
+
+    // トークンが見つかった
+    return (1);
 }

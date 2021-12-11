@@ -19,28 +19,12 @@ static void usage(char *prog)
     exit(1);
 }
 
-// トークンのリスト
-char *tokstr[] = {"+", "-", "*", "/", "int", "intlit"};
-
-// 入力ファイルの全トークンを見ていく
-// 見つかったトークンの詳細を出力する
-static void scanfile()
-{
-    struct token T;
-
-    while (scan(&T))
-    {
-        printf("Token %s", tokstr[T.token]);
-        if (T.token == T_INTLIT)
-            printf(", value %d", T.intvalue);
-        printf("\n");
-    }
-}
-
 // メイン。引数を調べて、なければ使い方を表示
 // 入力ファイルを開いてscanfileを呼びtokenを見ていく。
 void main(int argc, char *argv[])
 {
+    struct ASTnode *n;
+
     if (argc != 2)
         usage(argv[0]);
 
@@ -52,6 +36,8 @@ void main(int argc, char *argv[])
         exit(1);
     }
 
-    scanfile();
+    scan(&Token);                    // 入力ファイルの最初のトークンを取得
+    n = binexpr();                   // 入力ファイルの式をパース
+    printf("%d\n", interpretAST(n)); // 最終結果を計算
     exit(0);
 }
