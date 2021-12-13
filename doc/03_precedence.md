@@ -162,3 +162,72 @@ struct ASTnode *multiplicative_expr(void) {
 
 
 ## expr.c: Pratt Parsing
+
+`expr.c`の互換品である`expr2.c`にprattパースを実装します。
+
+はじめにそれぞれのトークンの優先度レベルを決定するコードが必要です。
+
+```c
+// 各トークンに対するオペレータ優先順位
+static int OpPrec[] = { 0, 10, 10, 20, 20,    0 };
+//                     EOF  +   -   *   /  INTLIT
+
+// ２項演算子があることを確認して
+// その優先度を返す
+static int op_precedence(int tokentype) {
+  int prec = OpPrec[tokentype];
+  if (prec == 0) {
+    fprintf(stderr, "構文エラー line %d, token %d\n", Line, tokentype);
+    exit(1);
+  }
+  return (prec);
+}
+```
+
+数値が高いほど優先されます。
+
+OpPrec[]というテーブルがあるのにさらに関数を用意する理由は、構文エラーを見つけるためです。
+
+234 101 + 12 という入力を考えてみます。最初の2トークンはスキャンできます。ですが2番目の101の優先順位を得るためだけに`OpPrec[]`を使った場合、オペレータがないことがわかりません。ですから`op_precedence()`関数で適切な文法構文となるよう矯正します。
+
+これで各優先度レベルに関数を用意することなく、オペレータ優先順位のテーブルを利用した、1つの式関数でまかなえました。
+
+```c
+// ルートが二項演算子であるASTツリーを返す
+// ptpは１つ前のトークンの優先順位
+struct ASTnode *binexpr(int ptp) {
+  struct ASTnode *left, *right;
+  int tokentype;
+
+  // 左の整数リテラルを取得
+  // 同時に次のトークンを取得
+  left = primary();
+
+  // トークンがなければ左ノードの値を返す
+  tokentype = Token.token;
+  if (tokentype == T_EOF)
+    return (left);
+
+  // 1つ前のトークンより今のトークンの優先順位が高い限りループ
+  while (op_precedence(tokentype) > ptp) {
+    // 次の整数リテラルを取得
+    scan(&Token);
+
+    // サブツリーを構築するために今のトークンの優先順位で
+    // binexpr()を再帰的に呼び出す
+    right = binexpr(OpPrec[tokentype]);
+
+    // サブツリーを結合する。同時にトークンをAST操作に変換する
+    left = mkastnode(arithop(tokentype), left, right, 0);
+
+    // 現在のトークンの詳細を更新
+    // トークンがなければ左ノードを返す
+    tokentype = Token.token;
+    if (tokentype == T_EOF)
+      return (left);
+  }
+
+  // 優先順位が同じか低いのであればツリーを返す
+  return (left);
+}
+```
