@@ -103,7 +103,7 @@ struct ASTnode {
 struct ASTnode *mkastnode(int op, struct ASTnode *left,
                           struct ASTnode *right, int intvalue) {
   struct ASTnode *n;
-こを
+
   // 新規にASTノードを確保する
   n = (struct ASTnode *) malloc(sizeof(struct ASTnode));
   if (n == NULL) {

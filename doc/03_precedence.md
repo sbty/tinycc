@@ -231,3 +231,97 @@ struct ASTnode *binexpr(int ptp) {
   return (left);
 }
 ```
+
+パーサの作りはこれまでと同様に再帰的です。今回は、呼び出される前に見つかったトークンの優先順位レベルを受け取ります。`main()`関数からは最低の優先順位、`0`で呼ばれますが、より高い(優先)値で自身を呼びだします。
+
+コード自体は`multiplicative_expr()`と似ています。整数リテラルとして読み込み、オペレータのトークン型を取得し、ループによってツリーを構築していきます。
+
+違いはループ条件と処理の対象だけです。
+
+```c
+multiplicative_expr():
+  while ((tokentype == T_STAR) || (tokentype == T_SLASH)) {
+    scan(&Token); right = primary();
+
+    left = mkastnode(arithop(tokentype), left, right, 0);
+
+    tokentype = Token.token;
+    if (tokentype == T_EOF) return (left);
+  }
+
+binexpr():
+  while (op_precedence(tokentype) > ptp) {
+    scan(&Token); right = binexpr(OpPrec[tokentype]);
+
+    left = mkastnode(arithop(tokentype), left, right, 0);
+
+    tokentype = Token.token;
+    if (tokentype == T_EOF) return (left);
+  }
+```
+
+prattパーサでは現在のトークンよりも次のオペレータの優先度が高ければ、`primary()`で次の整数リテラルを取得するのではなく、`binexpr(OpPrec[tokentype])`と自身を呼び出し、オペレータの優先順位を引き上げます。
+
+同じか低い優先順位のトークンがきたら単純に
+
+```c
+  return (left);
+```
+
+とします。これは大量のノードと呼び出し時点より高い優先度のオペレータを含んだサブツリーとなるか、同じ優先度のオペレータに対して1つだけの整数リテラルとなるでしょう。
+
+これで式をパースするための関数が1つになりました。小さなヘルパー関数を使ってオペレータの優先順位を矯正し、それによりこの言語の意味付け(semantics)を実装しています。
+
+## 2つのパーサを動かす
+
+それぞれにパーサからプログラムを作成します。
+
+```bash
+$ make parser                                        # Pratt Parser
+cc -o parser -g expr.c interp.c main.c scan.c tree.c
+
+$ make parser2                                       # Precedence Climbing
+cc -o parser2 -g expr2.c interp.c main.c scan.c tree.c
+
+```
+
+これまでの入力ファイルを使って2つのパーサをテストします。
+
+```bash
+$ make test
+(./parser input01; \
+ ./parser input02; \
+ ./parser input03; \
+ ./parser input04; \
+ ./parser input05)
+15                                       # input01
+29                                       # input02
+構文エラー line 1, token 5          # input03
+認識できない文字です line 3       # input04
+認識できない文字です line 1       # input05
+
+$ make test2
+(./parser2 input01; \
+ ./parser2 input02; \
+ ./parser2 input03; \
+ ./parser2 input04; \
+ ./parser2 input05)
+15                                       # input01
+29                                       # input02
+構文エラー on line 1, token 5          # input03
+認識できない文字です line 3       # input04
+認識できない文字です line 1       # input05
+```
+
+## まとめ
+
+これまでで以下のものができました。
+
+- 言語のトークンを認識し返す、スキャナー
+- 文法を認識し、構文エラーの通知と抽象構文木を構築するパーサ
+- 言語の意味を実装するパーサのための、優先順位テーブル
+- 深さ優先で抽象構文木を操作し、入力式の結果を計算するインタプリタ
+
+コンパイラがまだありません。
+
+次はインタプリタを置き換えます。算術オペレータを持つそれぞれのASTノードからx86-64アセンブリコードを生成する変換処理を記述していきます。また、ジェネレータが出力するアセンブリコードをサポートする、アセンブリの前文と後文も生成します。
