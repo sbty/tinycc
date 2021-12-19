@@ -36,8 +36,17 @@ void main(int argc, char *argv[])
         exit(1);
     }
 
+    // 出力ファイルの作成
+    if ((Outfile = fopen("out.s", "w")) == NULL)
+    {
+        fprintf(stderr, "out.sを作成できませんでした%s\n", strerror(errno));
+        exit(1);
+    }
+
     scan(&Token);                    // 入力ファイルの最初のトークンを取得
     n = binexpr(0);                  // 入力ファイルの式をパース
     printf("%d\n", interpretAST(n)); // 最終結果を計算
+    generatecode(n);
+    fclose(Outfile);
     exit(0);
 }

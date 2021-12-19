@@ -19,10 +19,12 @@ int interpretAST(struct ASTnode *n)
     rightval = interpretAST(n->right);
 
   //デバッグ用出力
+  /*
   if (n->op == A_INTLIT)
     printf("int %d\n", n->intvalue);
   else
     printf("%d %s %d\n", leftval, ASTop[n->op], rightval);
+*/
 
   switch (n->op)
   {
@@ -37,7 +39,7 @@ int interpretAST(struct ASTnode *n)
   case A_INTLIT:
     return (n->intvalue);
   default:
-    fprintf(stderr, "不明なAST操作です。%d\n", n->op);
+    fprintf(stderr, "不明なAST操作fです。%d\n", n->op);
     exit(1);
   }
 }
