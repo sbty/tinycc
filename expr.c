@@ -59,7 +59,7 @@ static int op_precedence(int tokentype)
 // 引数ptpは１つ前のトークンの優先順位
 struct ASTnode *binexpr(int ptp)
 {
-  struct ASTnode *n, *left, *right;
+  struct ASTnode *left, *right;
   int tokentype;
 
   // 左の整数リテラルを取得
@@ -68,10 +68,10 @@ struct ASTnode *binexpr(int ptp)
 
   // トークンが残ってなければ左ノードだけを返す。
   tokentype = Token.token;
-  if (tokentype == T_EOF)
+  if (tokentype == T_SEMI)
     return (left);
 
-  // 1つ前のトークンよりも現在のトークンの
+  // 1つ前のトークン(ptp)よりも現在のトークンの
   // 優先順位が高い限りループする。
   while (op_precedence(tokentype) > ptp)
   {
@@ -89,7 +89,7 @@ struct ASTnode *binexpr(int ptp)
     // 現在のトークンの詳細を更新
     // トークンが残ってなければ左ノードを返す
     tokentype = Token.token;
-    if (tokentype == T_EOF)
+    if (tokentype == T_SEMI)
       return (left);
   }
   //優先順位が同じか低いトークンが出る前までのツリーを返す。

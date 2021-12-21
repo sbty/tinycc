@@ -2,6 +2,9 @@
 #include "data.h"
 #include "decl.h"
 
+// ASTツリー関数
+
+// ASTノードを生成して返す
 struct ASTnode *mkastnode(int op, struct ASTnode *left, struct ASTnode *right, int intvalue)
 {
   struct ASTnode *n;

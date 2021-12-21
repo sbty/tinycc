@@ -23,7 +23,6 @@ static void usage(char *prog)
 // 入力ファイルを開いてscanfileを呼びtokenを見ていく。
 void main(int argc, char *argv[])
 {
-    struct ASTnode *n;
 
     if (argc != 2)
         usage(argv[0]);
@@ -43,10 +42,10 @@ void main(int argc, char *argv[])
         exit(1);
     }
 
-    scan(&Token);                    // 入力ファイルの最初のトークンを取得
-    n = binexpr(0);                  // 入力ファイルの式をパース
-    printf("%d\n", interpretAST(n)); // 最終結果を計算
-    generatecode(n);
+    scan(&Token);   // 入力ファイルの最初のトークンを取得
+    genpreamble();  // プレアンブルを出力
+    statements();   // 最終結果を計算
+    genpostamble(); // 入力されたステートメントをパース
     fclose(Outfile);
     exit(0);
 }

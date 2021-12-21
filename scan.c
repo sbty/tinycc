@@ -67,14 +67,60 @@ static int scanint(int c)
     return val;
 }
 
+// 入力ファイルから識別子をスキャンし
+// buf[]に保存する。識別子の長さを返す
+static int scanident(int c, char *buf, int lim)
+{
+    int i = 0;
+
+    // 数字、アルファベット、アンダースコアを受け付ける
+    while (isalpha(c) || isdigit(c) || '_' == c)
+    {
+        // buf[]に追加して次の文字を取得
+        // 識別子の長さの上限に到達したらエラー
+        if (lim - 1 == i)
+        {
+            printf("識別子が長すぎます %d\n", Line);
+            exit(1);
+        }
+        else if (i < lim - 1)
+        {
+            buf[i++] = c;
+        }
+        c = next();
+    }
+    // 無効な文字であれば差し戻す
+    // buf[]にNULL文字を追加して長さを返す
+    putback(c);
+    buf[i] = '\0';
+    return (i);
+}
+
+// 入力からの単語を引数に取り、見つからなければ0、
+// 見つかったら一致したキーワードのトークン番号を返す
+// すべてのキーワードとstrcmp()を行う時間を減らすため
+// 最初の文字でswitchによる分岐を使う
+static int keyword(char *s)
+{
+    switch (*s)
+    {
+    case 'p':
+        if (!strcmp(s, "print"))
+            return (T_PRINT);
+        break;
+    }
+    return (0);
+}
+
 // スキャンを行い入力ファイルから見つかった次のトークンを返す。
 // トークンが有効であれば１を、トークンが残っていなければ0を返す。
 int scan(struct token *t)
 {
-    int c;
+    int c, tokentype;
 
     //空白を飛ばす
     c = skip();
+    //    printf("%d ", c);
 
     //入力に応じてトークンを決める
     switch (c)
@@ -94,6 +140,9 @@ int scan(struct token *t)
     case '/':
         t->token = T_SLASH;
         break;
+    case ';':
+        t->token = T_SEMI;
+        break;
 
     default:
 
@@ -104,8 +153,23 @@ int scan(struct token *t)
             t->token = T_INTLIT;
             break;
         }
+        else if (isalpha(c) || '_' == c)
+        {
+            // キーワードか識別子として読み取る
+            scanident(c, Text, TEXTLEN);
 
-        printf("認識できない文字 %c on line %d\n", c, Line);
+            // 解釈できるキーワードであればそのトークンを返す
+            if (tokentype = keyword(Text))
+            {
+                t->token = tokentype;
+                break;
+            }
+            // 解釈できないキーワードなのでエラー
+            printf("認識できないシンボル %s on line %d\n", Text, Line);
+            exit(1);
+        }
+
+        printf("解釈できない文字 %c line %d\n", c, Line);
         exit(1);
     }
 
