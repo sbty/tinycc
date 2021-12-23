@@ -288,3 +288,150 @@ a = b = c = 0;
 これは代入がただのステートメントではなく、式でもある場合です。
 
 ## x86-64コードの生成
+
+`cgload()`関数名を`cgloadint()`に変更し、より具体的にしました。グローバル変数から値を読み込む関数も用意しました。(`cg.c`)
+
+```c
+int cgloadglob(char *identifier) {
+  // 新たにレジスタを取得
+  int r = alloc_register();
+
+  // 初期化するコードを出力
+  fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", identifier, reglist[r]);
+  return (r);
+}
+```
+
+同様にレジスタの中身を変数に保存する関数が必要です。
+
+```c
+// レジスタの値を変数に保存
+int cgstorglob(int r, char *register) {
+  fprintf(Outfile, "tmovqt%s, %s(\%%rip)\n", reglist[r], identifier);
+  return (r);
+}
+```
+
+新規に整数を入れるためのグローバル変数を作る関数も必要です。
+
+```c
+// グローバルシンボルを生成
+void cgglobsym(char *sym){
+  fprintf(Outfile, "\t.comm\t%s, 8, 8\n", sym);
+}
+```
+
+パーサが直接このコードにアクセスできるようにはしないので、インターフェースとして振る舞う関数をgen.cの汎用コードジェネレータに用意します。
+
+```c
+void genglobsym(char *s) { cgglobsym(s); }
+```
+
+## 式の中にある変数
+
+これで変数への代入が可能となりました。ですが変数の値のをどうやって式へ入れるのでしょうか。すでに整数リテラルを取得するための`primary()`はあります。修正して変数の値を読み込めるようにしていきます。
+
+```c
+// 主な要素をパースして、それらを表現するASTノードを返す
+static struct ASTnode *primary(void) {
+  struct ASTnode *n;
+  int id;
+
+  switch (Token.token) {
+  case T_INTLIT:
+    // INTLITトークンであればAST葉ノードを作る
+    n = mkastleaf(A_INTLIT, Token.intvalue);
+    break;
+
+  case T_IDENT:
+    // 識別子があるか調べる
+    id = findglob(Text);
+    if (id == -1)
+      fatals("不明な変数", Text);
+
+    // AST葉ノードを作る
+    n = mkastleaf(A_IDENT, id);
+    break;
+
+  default:
+    fatald("構文エラー, token", Token.token);
+  }
+
+  // 次のトークンをスキャンして葉ノードを返す
+  scan(&Token);
+  return (n);
+}
+```
+
+case文のT_IDENTの構文チェックは、変数を利用する前に、その変数が宣言されているか確認しています。
+
+変数の値を受け取るAST葉ノードはA_IDENTノードです。変数へ保存する葉ノードはA_LVIDENTノードです。これは左辺値と右辺値の違いです。
+
+## テスト
+
+変数宣言に関してはこれくらいにして、`input02`ファイルで試してみましょう。
+
+```c
+int fred;
+int jim;
+fred= 5;
+jim= 12;
+print fred + jim;
+```
+
+テストを実行します。
+
+```bash
+$ make test
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c
+               stmt.c sym.c tree.c
+...
+./comp1 input02
+cc -o out out.s
+./out
+17
+```
+
+5+12、あるいは17である`fred + jim`が計算できました。`out.s`の新たなアセンブリ行は以下の通りです。
+
+```assembly
+        .comm   fred,8,8                # Declare fred
+        .comm   jim,8,8                 # Declare jim
+        ...
+        movq    $5, %r8
+        movq    %r8, fred(%rip)         # fred = 5
+        movq    $12, %r8
+        movq    %r8, jim(%rip)          # jim = 12
+        movq    fred(%rip), %r8
+        movq    jim(%rip), %r9
+        addq    %r8, %r9                # fred + jim
+```
+
+## その他の変更
+
+`misc.c`に致命的なエラーを報告しやすくするヘルパー関数を追加しました。
+
+```c
+// 問題となるメッセージを出力
+void fatal(char *s) {
+  fprintf(stderr, "%s on line %d\n", s, Line); exit(1);
+}
+
+void fatals(char *s1, char *s2) {
+  fprintf(stderr, "%s:%s on line %d\n", s1, s2, Line); exit(1);
+}
+
+void fatald(char *s, int d) {
+  fprintf(stderr, "%s:%d on line %d\n", s, d, Line); exit(1);
+}
+
+void fatalc(char *s, int c) {
+  fprintf(stderr, "%s:%c on line %d\n", s, c, Line); exit(1);
+}
+```
+
+## まとめ
+
+シンボルテーブル管理に始まり、2種のステートメントの追加、ASTノードタイプの追加、適切なx86-64アセンブリを生成するためのコードの追加など、多くの作業を終えました。
+
+次回は6つの比較演算子を追加していきます。そうすれば制御構造に取り掛かることが可能となります。

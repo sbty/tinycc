@@ -30,8 +30,7 @@ static int alloc_register(void)
       return (i);
     }
   }
-  fprintf(stderr, "利用可能なレジスタがありません\n");
-  exit(1);
+  fatal("利用可能なレジスタがありません");
 }
 
 // 利用可能なレジスタのリストへ(利用中の)レジスタを返す
@@ -40,8 +39,7 @@ static void free_register(int reg)
 {
   if (freereg[reg] != 0)
   {
-    fprintf(stderr, "レジスタの開放に失敗しました %d\n", reg);
-    exit(1);
+    fatald("レジスタの開放に失敗しました", reg);
   }
   freereg[reg] = 1;
 }
@@ -88,13 +86,25 @@ void cgpostamble()
 
 // 整数リテラル値をレジスタに読み込む
 // レジスタ番号を返す
-int cgload(int value)
+int cgloadint(int value)
 {
   // 新規にレジスタを確保();
   int r = alloc_register();
 
   // 初期化コードを出力
   fprintf(Outfile, "\tmovq\t$%d, %s\n", value, reglist[r]);
+  return (r);
+}
+
+// 変数からレジスタに値を読み込む
+// レジスタ番号を返す
+int cgloadglob(char *identifier)
+{
+  // 新規にレジスタを取得
+  int r = alloc_register();
+
+  // 初期化コードを出力
+  fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", identifier, reglist[r]);
   return (r);
 }
 
@@ -143,4 +153,17 @@ void cgprintint(int r)
   fprintf(Outfile, "\tmovq\t%s, %%rdi\n", reglist[r]);
   fprintf(Outfile, "\tcall\tprintint\n");
   free_register(r);
+}
+
+// レジスタの値を変数に保存
+int cgstorglob(int r, char *identifier)
+{
+  fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], identifier);
+  return (r);
+}
+
+// グローバルシンボルを生成
+void cgglobsym(char *sym)
+{
+  fprintf(Outfile, "\t.comm\t%s,8,8\n", sym);
 }

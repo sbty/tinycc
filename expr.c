@@ -6,23 +6,36 @@
 static struct ASTnode *primary(void)
 {
   struct ASTnode *n;
+  int id;
 
   // INTLITトークンであれば葉としてASTノードを作り
   // 次のトークンをスキャンする。それ以外はどのトークンタイプでも構文エラー
   switch (Token.token)
   {
   case T_INTLIT:
+    // INTLITトークンであればAST葉ノードを作る
     n = mkastleaf(A_INTLIT, Token.intvalue);
-    scan(&Token);
-    return (n);
+    break;
+
+  case T_IDENT:
+    // この識別子が宣言されているか調べる
+    id = findglob(Text);
+    if (id == -1)
+      fatals("不明な変数", Text);
+
+    // AST葉ノードを作る
+    n = mkastleaf(A_IDENT, id);
+    break;
+
   default:
-    fprintf(stderr, "構文エラー line %d, token %d\n", Line, Token.token);
-    exit(1);
+    fatald("構文エラー、トークン", Token.token);
   }
+  scan(&Token);
+  return (n);
 }
 
 // トークンをAST操作に変換
-int arithop(int tokentype)
+static int arithop(int tokentype)
 {
   switch (tokentype)
   {
@@ -35,8 +48,7 @@ int arithop(int tokentype)
   case T_SLASH:
     return (A_DIVIDE);
   default:
-    fprintf(stderr, "不明なトークンです。arithop() line %d, token %d\n", Line, tokentype);
-    exit(1);
+    fatald("構文エラー、トークン", tokentype);
   }
 }
 
@@ -48,10 +60,7 @@ static int op_precedence(int tokentype)
 {
   int prec = OpPrec[tokentype];
   if (prec == 0)
-  {
-    fprintf(stderr, "構文エラー line %d, token %d\n", Line, tokentype);
-    exit(1);
-  }
+    fatald("構文エラー トークン", tokentype);
   return (prec);
 }
 

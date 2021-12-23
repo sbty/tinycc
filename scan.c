@@ -2,6 +2,8 @@
 #include "data.h"
 #include "decl.h"
 
+// 字句解析
+
 // 文字列sの位置cを返し、見つからなければ-1を返す
 static int chrpos(char *s, int c)
 {
@@ -20,13 +22,13 @@ static int next(void)
     {
         c = Putback;
         Putback = 0;
-        return c;
+        return (c);
     }
 
     c = fgetc(Infile);
     if ('\n' == c)
         Line++;
-    return c;
+    return (c);
 }
 
 static void putback(int c)
@@ -64,7 +66,7 @@ static int scanint(int c)
 
     // 数字以外は破棄
     putback(c);
-    return val;
+    return (val);
 }
 
 // 入力ファイルから識別子をスキャンし
@@ -80,8 +82,7 @@ static int scanident(int c, char *buf, int lim)
         // 識別子の長さの上限に到達したらエラー
         if (lim - 1 == i)
         {
-            printf("識別子が長すぎます %d\n", Line);
-            exit(1);
+            fatal("識別子が長すぎます");
         }
         else if (i < lim - 1)
         {
@@ -104,6 +105,10 @@ static int keyword(char *s)
 {
     switch (*s)
     {
+    case 'i':
+        if (!strcmp(s, "int"))
+            return (T_INT);
+        break;
     case 'p':
         if (!strcmp(s, "print"))
             return (T_PRINT);
@@ -143,6 +148,9 @@ int scan(struct token *t)
     case ';':
         t->token = T_SEMI;
         break;
+    case '=':
+        t->token = T_EQUALS;
+        break;
 
     default:
 
@@ -165,12 +173,11 @@ int scan(struct token *t)
                 break;
             }
             // 解釈できないキーワードなのでエラー
-            printf("認識できないシンボル %s on line %d\n", Text, Line);
-            exit(1);
+            t->token = T_IDENT;
+            break;
         }
 
-        printf("解釈できない文字 %c line %d\n", c, Line);
-        exit(1);
+        fatalc("解釈できない文字", c);
     }
 
     // トークンが見つかった

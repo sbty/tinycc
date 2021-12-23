@@ -13,14 +13,13 @@ struct ASTnode *mkastnode(int op, struct ASTnode *left, struct ASTnode *right, i
   n = (struct ASTnode *)malloc(sizeof(struct ASTnode));
   if (n == NULL)
   {
-    fprintf(stderr, "メモリが確保できませんでした。mkastnode() \n");
-    exit(1);
+    fatal("メモリが確保できませんでした。mkastnode()");
   }
 
   n->op = op;
   n->left = left;
   n->right = right;
-  n->intvalue = intvalue;
+  n->v.intvalue = intvalue;
   return (n);
 }
 

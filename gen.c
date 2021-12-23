@@ -2,17 +2,20 @@
 #include "data.h"
 #include "decl.h"
 
+// 汎用コードジェネレータ
+
 // 与えられたASTノードで再帰的に
 // アセンブリコードを生成する
-int genAST(struct ASTnode *n)
+// 作成した木の最終値とそのレジスタIDを返す
+int genAST(struct ASTnode *n, int reg)
 {
   int leftreg, rightreg;
 
   // 左右のサブツリーの値を取得
   if (n->left)
-    leftreg = genAST(n->left);
+    leftreg = genAST(n->left, -1);
   if (n->right)
-    rightreg = genAST(n->right);
+    rightreg = genAST(n->right, leftreg);
 
   switch (n->op)
   {
@@ -25,11 +28,17 @@ int genAST(struct ASTnode *n)
   case A_DIVIDE:
     return (cgdiv(leftreg, rightreg));
   case A_INTLIT:
-    return (cgload(n->intvalue));
+    return (cgloadint(n->v.intvalue));
+  case A_IDENT:
+    return (cgloadglob(Gsym[n->v.id].name));
+  case A_LVIDENT:
+    return (cgstorglob(reg, Gsym[n->v.id].name));
+  case A_ASSIGN:
+    // やることを終えたので結果を返す
+    return (rightreg);
 
   default:
-    fprintf(stderr, "不明なAST操作です %d\n", n->op);
-    exit(1);
+    fatald("不明なAST操作です", n->op);
   }
 }
 
@@ -48,4 +57,9 @@ void genfreeregs()
 void genprintint(int reg)
 {
   cgprintint(reg);
+}
+
+void genglobsym(char *s)
+{
+  cgglobsym(s);
 }
