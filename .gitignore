@@ -1,2 +1,6 @@
-input*
+*
+!*/
+!*.*
+!Makefile
 *.json
+*.s
