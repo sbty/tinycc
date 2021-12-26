@@ -2,6 +2,8 @@
 #define extern_ extern
 #endif
 
+// グローバル変数
+
 extern_ int Line;     // 現在の行数
 extern_ int Putback;  // スキャナによる文字の差し戻し
 extern_ FILE *Infile; // 入出力ファイル

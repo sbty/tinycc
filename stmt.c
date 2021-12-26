@@ -45,12 +45,12 @@ void assignment_statement(void)
   // 定義されていたら葉ノードを作る
   if ((id = findglob(Text)) == -1)
   {
-    fatals("変数が宣言されていません", Text);
+    fatals("宣言されていない変数", Text);
   }
   right = mkastleaf(A_LVIDENT, id);
 
   // イコールがあるか調べる
-  match(T_EQUALS, "=");
+  match(T_ASSIGN, "=");
 
   // 続く式をパース
   left = binexpr(0);

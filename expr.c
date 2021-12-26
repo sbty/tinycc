@@ -34,26 +34,21 @@ static struct ASTnode *primary(void)
   return (n);
 }
 
-// トークンをAST操作に変換
+// 二項演算子トークンをAST操作に変換
+// トークンからAST操作は1:1で対応しなければならない
 static int arithop(int tokentype)
 {
-  switch (tokentype)
-  {
-  case T_PLUS:
-    return (A_ADD);
-  case T_MINUS:
-    return (A_SUBTRACT);
-  case T_STAR:
-    return (A_MULTIPLY);
-  case T_SLASH:
-    return (A_DIVIDE);
-  default:
-    fatald("構文エラー、トークン", tokentype);
-  }
+  if (tokentype > T_EOF && tokentype < T_INTLIT)
+    return (tokentype);
+  fatald("構文エラー、トークン", tokentype);
 }
 
 // 各トークンのオペレータ優先順位
-static int OpPrec[] = {0, 10, 10, 20, 20, 0};
+static int OpPrec[] = {
+    0, 10, 10,       // T_EOF, T_PLUS, T_MINUS
+    20, 20,          // T_STAR, T_SLASH
+    30, 30,          // T_EQ, T_NE
+    40, 40, 40, 40}; // T_LT, T_GT, T_LE, T_GE
 
 // ２項演算子であることを確認してその優先順位を返す
 static int op_precedence(int tokentype)

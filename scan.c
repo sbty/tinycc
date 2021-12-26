@@ -149,7 +149,47 @@ int scan(struct token *t)
         t->token = T_SEMI;
         break;
     case '=':
-        t->token = T_EQUALS;
+        if ((c = next()) == '=')
+        {
+            t->token = T_EQ;
+        }
+        else
+        {
+            putback(c);
+            t->token = T_ASSIGN;
+        }
+        break;
+    case '!':
+        if ((c = next()) == '=')
+        {
+            t->token = T_NE;
+        }
+        else
+        {
+            fatalc("解釈できない文字", c);
+        }
+        break;
+    case '<':
+        if ((c = next()) == '=')
+        {
+            t->token = T_LE;
+        }
+        else
+        {
+            putback(c);
+            t->token = T_LT;
+        }
+        break;
+    case '>':
+        if ((c = next()) == '=')
+        {
+            t->token = T_GE;
+        }
+        else
+        {
+            putback(c);
+            t->token = T_GT;
+        }
         break;
 
     default:
@@ -172,7 +212,7 @@ int scan(struct token *t)
                 t->token = tokentype;
                 break;
             }
-            // 解釈できないキーワードなのでエラー
+            // 解釈できないキーワードなので識別子のはず
             t->token = T_IDENT;
             break;
         }
