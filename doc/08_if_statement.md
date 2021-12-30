@@ -449,3 +449,120 @@ static int genIFAST(struct ASTnode *n) {
 ```
 
 ## x86-64コード生成関数
+
+いくつか新しいx86-64コード生成関数が増えました。そのうちのいくつかは前回までに作った、6つの`cgXXX()`比較関数を置き換えるものです。
+
+通常の比較関数には関連するx86-64命令を選ぶためAST操作を渡します。
+
+```c
+// 比較命令のリスト
+// ASTの順番: A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE
+static char *cmplist[] =
+  { "sete", "setne", "setl", "setg", "setle", "setge" };
+
+// 2つのレジスタを比較して条件が真であればセット
+int cgcompare_and_set(int ASTop, int r1, int r2) {
+
+  // AST操作の範囲をチェック
+  if (ASTop < A_EQ || ASTop > A_GE)
+    fatal("cgcompare_and_set()での不正なAST操作");
+
+  fprintf(Outfile, "\tcmpq\t%s, %s\n", reglist[r2], reglist[r1]);
+  fprintf(Outfile, "\t%s\t%s\n", cmplist[ASTop - A_EQ], breglist[r2]);
+  fprintf(Outfile, "\tmovzbq\t%s, %s\n", breglist[r2], reglist[r2]);
+  free_register(r1);
+  return (r2);
+}
+```
+
+x86-64命令である`movzbq`はあるレジスタから最下位バイトへコピーし、64ビットレジスタへ合うように拡張されます。これまでのコードの$255の代わりにこれを使うことにします。
+
+ラベルを生成しそこへジャンプする関数が必要です。
+
+```c
+// ラベルを生成
+void cglabel(int l) {
+  fprintf(Outfile, "L%d:\n", l);
+}
+
+// ラベルへのジャンプを生成
+void cgjump(int l) {
+  fprintf(Outfile, "\tjmp\tL%d\n", l);
+}
+```
+
+最後に、比較を行い条件を満たさないときにジャンプする関数が必要です。ですからAST比較ノード型を使い、反対の比較を行います。
+
+```c
+// 反転したジャンプ命令のリスト
+// ASTの順番: A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE
+static char *invcmplist[] = { "jne", "je", "jge", "jle", "jg", "jl" };
+
+// 2つのレジスタを比較して偽であればジャンプ
+int cgcompare_and_jump(int ASTop, int r1, int r2, int label) {
+
+  // AST操作の範囲をチェック
+  if (ASTop < A_EQ || ASTop > A_GE)
+    fatal("cgcompare_and_set()内での不正なAST操作");
+
+  fprintf(Outfile, "\tcmpq\t%s, %s\n", reglist[r2], reglist[r1]);
+  fprintf(Outfile, "\t%s\tL%d\n", invcmplist[ASTop - A_EQ], label);
+  freeall_registers();
+  return (NOREG);
+}
+```
+
+## if文のテスト
+
+`make test`で`input05`をコンパイルしてみます。
+
+```c
+{
+  int i; int j;
+  i=6; j=12;
+  if (i < j) {
+    print i;
+  } else {
+    print j;
+  }
+}
+```
+
+次のアセンブリが出力されました。
+
+```assembly
+        movq    $6, %r8
+        movq    %r8, i(%rip)    # i=6;
+        movq    $12, %r8
+        movq    %r8, j(%rip)    # j=12;
+        movq    i(%rip), %r8
+        movq    j(%rip), %r9
+        cmpq    %r9, %r8        # %r8-%r9の比較、つまり i-j
+        jge     L1              # i >= j であればL1へジャンプ
+        movq    i(%rip), %r8
+        movq    %r8, %rdi       # iを出力;
+        call    printint
+        jmp     L2              # elseコードをスキップ
+L1:
+        movq    j(%rip), %r8
+        movq    %r8, %rdi       # jを出力;
+        call    printint
+L2:
+```
+
+`make test`の結果は次のようになります。
+
+```bash
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c
+      scan.c stmt.c sym.c tree.c
+./comp1 input05
+cc -o out out.s
+./out
+6                   # 6 は 12 より小さいため
+```
+
+## まとめ
+
+if文による初めての制御構造を追加しました。
+
+次回はさらなる制御構造、whileループを追加していきます。
