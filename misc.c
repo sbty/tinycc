@@ -25,6 +25,30 @@ void semi(void)
   match(T_SEMI, ";");
 }
 
+// '{'と照合して次のトークンを取得
+void lbrace(void)
+{
+  match(T_LBRACE, "{");
+}
+
+// '}'と照合して次のトークンを取得
+void rbrace(void)
+{
+  match(T_RBRACE, "}");
+}
+
+// '('と照合して次のトークンを取得
+void lparen(void)
+{
+  match(T_LPAREN, "(");
+}
+
+// ')'と照合して次のトークンを取得
+void rparen(void)
+{
+  match(T_RPAREN, ")");
+}
+
 // 識別子を調べて次のトークンを取得
 void ident(void)
 {

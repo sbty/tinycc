@@ -5,7 +5,7 @@
 // ASTツリー関数
 
 // ASTノードを生成して返す
-struct ASTnode *mkastnode(int op, struct ASTnode *left, struct ASTnode *right, int intvalue)
+struct ASTnode *mkastnode(int op, struct ASTnode *left, struct ASTnode *mid, struct ASTnode *right, int intvalue)
 {
   struct ASTnode *n;
 
@@ -18,6 +18,7 @@ struct ASTnode *mkastnode(int op, struct ASTnode *left, struct ASTnode *right, i
 
   n->op = op;
   n->left = left;
+  n->mid = mid;
   n->right = right;
   n->v.intvalue = intvalue;
   return (n);
@@ -26,11 +27,11 @@ struct ASTnode *mkastnode(int op, struct ASTnode *left, struct ASTnode *right, i
 // 葉としてASTノードを作成
 struct ASTnode *mkastleaf(int op, int intvalue)
 {
-  return (mkastnode(op, NULL, NULL, intvalue));
+  return (mkastnode(op, NULL, NULL, NULL, intvalue));
 }
 
 // １つだけ子を持つ単項ASTノードをつくる
 struct ASTnode *mkastunary(int op, struct ASTnode *left, int intvalue)
 {
-  return (mkastnode(op, left, NULL, intvalue));
+  return (mkastnode(op, left, NULL, NULL, intvalue));
 }

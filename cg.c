@@ -174,19 +174,52 @@ void cgglobsym(char *sym)
   fprintf(Outfile, "\t.comm\t%s,8,8\n", sym);
 }
 
-// 2つのレジスタの比較
-static int cgcompare(int r1, int r2, char *how)
+// 比較命令のリスト
+// ASTの並び: A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE
+static char *cmplist[] =
+    {"sete", "setne", "setl", "setg", "setle", "setge"};
+
+// 2つのレジスタを比較して真であればセット
+int cgcompare_and_set(int ASTop, int r1, int r2)
 {
+
+  // AST操作の範囲をチェック
+  if (ASTop < A_EQ || ASTop > A_GE)
+    fatal("cgcompare_and_set()内での不正なAST操作");
+
   fprintf(Outfile, "\tcmpq\t%s, %s\n", reglist[r2], reglist[r1]);
-  fprintf(Outfile, "\t%s\t%s\n", how, breglist[r2]);
-  fprintf(Outfile, "\tandq\t$255,%s\n", reglist[r2]);
+  fprintf(Outfile, "\t%s\t%s\n", cmplist[ASTop - A_EQ], breglist[r2]);
+  fprintf(Outfile, "\tmovzbq\t%s, %s\n", breglist[r2], reglist[r2]);
   free_register(r1);
   return (r2);
 }
 
-int cgequal(int r1, int r2) { return (cgcompare(r1, r2, "sete")); }
-int cgnotequal(int r1, int r2) { return (cgcompare(r1, r2, "setne")); }
-int cglessthan(int r1, int r2) { return (cgcompare(r1, r2, "setl")); }
-int cggreaterthan(int r1, int r2) { return (cgcompare(r1, r2, "setg")); }
-int cglessequal(int r1, int r2) { return (cgcompare(r1, r2, "setle")); }
-int cggreaterequal(int r1, int r2) { return (cgcompare(r1, r2, "setge")); }
+// ラベルを生成
+void cglabel(int l)
+{
+  fprintf(Outfile, "L%d:\n", l);
+}
+
+// ラベルへのジャンプを生成
+void cgjump(int l)
+{
+  fprintf(Outfile, "\tjmp\tL%d\n", l);
+}
+
+// ひっくり返したジャンプ命令のリスト
+// ASTのならび: A_EQ, A_NE, A_LT, A_GT, A_LE, A_GE
+static char *invcmplist[] = {"jne", "je", "jge", "jle", "jg", "jl"};
+
+// 2つのレジスタを比較して偽ならジャンプ
+int cgcompare_and_jump(int ASTop, int r1, int r2, int label)
+{
+
+  // AST操作の範囲をチェック
+  if (ASTop < A_EQ || ASTop > A_GE)
+    fatal("cgcompare_and_set()内での不正なAST操作");
+
+  fprintf(Outfile, "\tcmpq\t%s, %s\n", reglist[r2], reglist[r1]);
+  fprintf(Outfile, "\t%s\tL%d\n", invcmplist[ASTop - A_EQ], label);
+  freeall_registers();
+  return (NOREG);
+}

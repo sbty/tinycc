@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 
+// 構造体とenum定義
 #define TEXTLEN 512   //  入力のシンボルの長さ
 #define NSYMBOLS 1024 //  シンボルテーブルのエントリ数
 
@@ -24,8 +25,14 @@ enum
   T_SEMI,
   T_ASSIGN,
   T_IDENT,
+  T_LBRACE, //
+  T_RBRACE,
+  T_LPAREN,
+  T_RPAREN,
   T_PRINT, // キーワード
-  T_INT
+  T_INT,
+  T_IF,
+  T_ELSE
 };
 
 struct token
@@ -50,7 +57,10 @@ enum
   A_INTLIT, //
   A_IDENT,  //
   A_LVIDENT,
-  A_ASSIGN
+  A_ASSIGN,
+  A_PRINT,
+  A_GLUE,
+  A_IF
 };
 
 // AST構造体
@@ -58,6 +68,7 @@ struct ASTnode
 {
   int op;               // このツリーで実行される操作
   struct ASTnode *left; // 左右の子ツリー
+  struct ASTnode *mid;
   struct ASTnode *right;
   int intvalue; // A_INTLITのときの整数値
   union
@@ -66,6 +77,8 @@ struct ASTnode
     int id;       // A_IDENTのシンボルスロット番号
   } v;
 };
+
+#define NOREG -1 // AST生成関数が返すレジスタがないときに使う
 
 // シンボルテーブル構造体
 struct symtable

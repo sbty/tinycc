@@ -23,6 +23,7 @@ static void usage(char *prog)
 // 入力ファイルを開いてscanfileを呼びtokenを見ていく。
 void main(int argc, char *argv[])
 {
+    struct ASTnode *tree;
 
     if (argc != 2)
         usage(argv[0]);
@@ -42,10 +43,11 @@ void main(int argc, char *argv[])
         exit(1);
     }
 
-    scan(&Token);   // 入力ファイルの最初のトークンを取得
-    genpreamble();  // プレアンブルを出力
-    statements();   // 最終結果を計算
-    genpostamble(); // 入力されたステートメントをパース
+    scan(&Token);                // 入力ファイルの最初のトークンを取得
+    genpreamble();               // プレアンブルを出力
+    tree = compound_statement(); // 入力の合成ステートメントをパース
+    genAST(tree, NOREG, 0);      // アセンブリコードを生成
+    genpostamble();              // 入力されたステートメントをパース
     fclose(Outfile);
     exit(0);
 }

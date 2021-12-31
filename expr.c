@@ -2,7 +2,7 @@
 #include "data.h"
 #include "decl.h"
 
-// 主要な要素をパースして、ASTノードとして返す
+// 主要な要素をパースして、ASTノードとして返すP
 static struct ASTnode *primary(void)
 {
   struct ASTnode *n;
@@ -70,9 +70,9 @@ struct ASTnode *binexpr(int ptp)
   // 同時に次のトークンも取得
   left = primary();
 
-  // トークンが残ってなければ左ノードだけを返す。
+  // セミコロンか')'を見つけたら左ノードだけを返す。
   tokentype = Token.token;
-  if (tokentype == T_SEMI)
+  if (tokentype == T_SEMI || tokentype == T_RPAREN)
     return (left);
 
   // 1つ前のトークン(ptp)よりも現在のトークンの
@@ -88,12 +88,12 @@ struct ASTnode *binexpr(int ptp)
 
     // サブツリーを結合する。
     // 同時にトークンをAST操作に変換
-    left = mkastnode(arithop(tokentype), left, right, 0);
+    left = mkastnode(arithop(tokentype), left, NULL, right, 0);
 
     // 現在のトークンの詳細を更新
-    // トークンが残ってなければ左ノードを返す
+    // セミコロンか')'を見つけたら左ノードを返す
     tokentype = Token.token;
-    if (tokentype == T_SEMI)
+    if (tokentype == T_SEMI || tokentype == T_RPAREN)
       return (left);
   }
   //優先順位が同じか低いトークンが出る前までのツリーを返す。
