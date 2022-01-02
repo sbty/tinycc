@@ -116,3 +116,31 @@ case A_EQ:
 ```
 
 以上でwhileループの実装に必要なものが揃いました。
+
+## 追加した文をテスト
+
+入力ファイルを`tests/`ディレクトリへ移動しました。`make test`するとこのディレクトリへ行き、すべての入力ファイルをコンパイルし、正しいとされる出力と比較します。
+
+```bash
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c stmt.c
+      sym.c tree.c
+(cd tests; chmod +x runtests; ./runtests)
+input01: OK
+input02: OK
+input03: OK
+input04: OK
+input05: OK
+input06: OK
+```
+
+`make test6`とすると`tests/input06`ファイルをコンパイルします。
+
+```c
+{ int i;
+  i=1;
+  while (i <= 10) {
+    print i;
+    i= i + 1;
+  }
+}
+```
