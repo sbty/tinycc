@@ -119,6 +119,10 @@ static int keyword(char *s)
         if (!strcmp(s, "print"))
             return (T_PRINT);
         break;
+    case 'w':
+        if (!strcmp(s, "while"))
+            return (T_WHILE);
+        break;
     }
     return (0);
 }
@@ -166,7 +170,6 @@ int scan(struct token *t)
     case ')':
         t->token = T_RPAREN;
         break;
-
     case '=':
         if ((c = next()) == '=')
         {

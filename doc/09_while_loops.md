@@ -144,3 +144,57 @@ input06: OK
   }
 }
 ```
+
+上記の内容は1から10の数字を出力します。
+
+```bash
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c
+      stmt.c sym.c tree.c
+./comp1 tests/input06
+cc -o out out.s
+./out
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+```
+
+コンパイルによるアセンブリの出力は次のようになります。
+
+```assembly
+	.comm	i,8,8
+	movq	$1, %r8
+	movq	%r8, i(%rip)		# i= 1
+L1:
+	movq	i(%rip), %r8
+	movq	$10, %r9
+	cmpq	%r9, %r8		# i <= 10?
+	jg	L2			# 以上であればL2へジャンプ
+	movq	i(%rip), %r8
+	movq	%r8, %rdi		# iを出力
+	call	printint
+	movq	i(%rip), %r8
+	movq	$1, %r9
+	addq	%r8, %r9		# iに1を加算
+	movq	%r9, i(%rip)
+	jmp	L1			# ループ先頭へ戻る
+L2:
+```
+
+## まとめ
+
+if文とwhile文は似ている箇所が多いため、すでにif文を実装したあとでは簡単に済みました。
+
+チューリング完全になったと言えそうです。
+
+- 無限のストレージ、つまり無限の変数
+- if文のような、変数の値に応じた条件分岐を行う機能
+- while文のような、進行方向を変更する機能
+
+次回はforループについて実装していきます。

@@ -32,7 +32,8 @@ enum
   T_PRINT, // キーワード
   T_INT,
   T_IF,
-  T_ELSE
+  T_ELSE,
+  T_WHILE
 };
 
 struct token
@@ -60,7 +61,8 @@ enum
   A_ASSIGN,
   A_PRINT,
   A_GLUE,
-  A_IF
+  A_IF, //
+  A_WHILE
 };
 
 // AST構造体

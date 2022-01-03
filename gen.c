@@ -12,7 +12,7 @@ static int label(void)
 }
 
 // if文とオプションのelse句のコードを生成する
-static int genIFAST(struct ASTnode *n)
+static int genIF(struct ASTnode *n)
 {
   int Lfalse, Lend;
 
@@ -52,6 +52,34 @@ static int genIFAST(struct ASTnode *n)
   return (NOREG);
 }
 
+// whileステートメントと、オプションのelse句の
+// コードを生成
+static int genWHILE(struct ASTnode *n)
+{
+  int Lstart, Lend;
+
+  // 開始と終了ラベルを生成
+  // スタートラベルを出力
+  Lstart = label();
+  Lend = label();
+  cglabel(Lstart);
+
+  // 後ろに終了ラベルへのジャンプ文がつく
+  // 条件分岐を生成。
+  // Lfalseラベルをレジスタとして送るインチキをする
+  genAST(n->left, Lend, n->op);
+  genfreeregs();
+
+  // while本文の合成ステートメントを生成
+  genAST(n->right, NOREG, n->op);
+  genfreeregs();
+
+  // 最後に終了ラベルと条件分岐へ戻る出力
+  cgjump(Lstart);
+  cglabel(Lend);
+  return (NOREG);
+}
+
 // ASTと(あれば)前の右辺値を保持するレジスタ、
 // 親のAST操作を引数に取り、再帰的に
 // アセンブリコードを生成する。
@@ -64,7 +92,9 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
   switch (n->op)
   {
   case A_IF:
-    return (genIFAST(n));
+    return (genIF(n));
+  case A_WHILE:
+    return (genWHILE(n));
   case A_GLUE:
     // 子ステートメントそれぞれと
     genAST(n->left, NOREG, n->op);
@@ -101,7 +131,7 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     // 親ASTノードがA_IFであれば、後ろにジャンプがつく比較を
     // 生成する。そうでなければレジスタを比較し、その結果に応じて
     // 0か1をセットする
-    if (parentASTop == A_IF)
+    if (parentASTop == A_IF || parentASTop == A_WHILE)
       return (cgcompare_and_jump(n->op, leftreg, rightreg, reg));
     else
       return (cgcompare_and_set(n->op, leftreg, rightreg));
