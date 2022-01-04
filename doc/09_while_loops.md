@@ -168,22 +168,22 @@ cc -o out out.s
 コンパイルによるアセンブリの出力は次のようになります。
 
 ```assembly
-	.comm	i,8,8
-	movq	$1, %r8
-	movq	%r8, i(%rip)		# i= 1
+  .comm i,8,8
+  movq  $1, %r8
+  movq  %r8, i(%rip)  # i= 1
 L1:
-	movq	i(%rip), %r8
-	movq	$10, %r9
-	cmpq	%r9, %r8		# i <= 10?
-	jg	L2			# 以上であればL2へジャンプ
-	movq	i(%rip), %r8
-	movq	%r8, %rdi		# iを出力
-	call	printint
-	movq	i(%rip), %r8
-	movq	$1, %r9
-	addq	%r8, %r9		# iに1を加算
-	movq	%r9, i(%rip)
-	jmp	L1			# ループ先頭へ戻る
+  movq  i(%rip), %r8
+  movq  $10, %r9
+  cmpq  %r9, %r8    # i <= 10?
+  jg  L2            # 以上であればL2へジャンプ
+  movq  i(%rip), %r8
+  movq  %r8, %rdi   # iを出力
+  call  printint
+  movq  i(%rip), %r8
+  movq  $1, %r9
+  addq  %r8, %r9    # iに1を加算
+  movq  %r9, i(%rip)
+  jmp L1            # ループ先頭へ戻る
 L2:
 ```
 
