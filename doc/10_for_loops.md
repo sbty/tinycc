@@ -194,4 +194,74 @@ static struct ASTnode *for_statement(void) {
 }
 ```
 
-##
+## アセンブリコードの生成
+
+変更点は結合したサブツリーを持ち、whileループのあるツリーを合成しただけなので、コンパイラの生成コードに変更はありません。
+
+## テスト
+
+`tests/input07`は次のようになっています。
+
+```c
+{
+  int i;
+  for (i= 1; i <= 10; i= i + 1) {
+    print i;
+  }
+}
+```
+
+`make test7`を実行すると次のような出力が得られます。
+
+```bash
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c
+    stmt.c sym.c tree.c
+./comp1 tests/input07
+cc -o out out.s
+./out
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+```
+
+該当するアセンブリは以下です。
+
+```assembly
+  .comm i,8,8
+  movq  $1, %r8
+  movq  %r8, i(%rip)    # i = 1
+L1:
+  movq  i(%rip), %r8
+  movq  $10, %r9
+  cmpq  %r9, %r8    # i < 10?
+  jg  L2      # i >= 10ならL2へジャンプ
+  movq  i(%rip), %r8
+  movq  %r8, %rdi
+  call  printint    # iを出力
+  movq  i(%rip), %r8
+  movq  $1, %r9
+  addq  %r8, %r9    # i = i + 1
+  movq  %r9, i(%rip)
+  jmp L1      # ループの先頭へジャンプ
+L2:
+```
+
+## まとめ
+
+それなりの数の制御構造が揃ってきました。それでも必要なものはまだまだ有ります。
+
+- 型
+- ローカルとグローバル
+- 関数
+- 配列とポインタ
+- 構造体とunion
+- auto、static、friend
+
+関数にしようと思います。関数の追加をいくつかに分けて、その最初の段階へ取りかかります。
