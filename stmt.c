@@ -4,6 +4,9 @@
 
 // ステートメントのパース
 
+// Prototypes
+static struct ASTnode *single_statement(void);
+
 // compound_statement:          // empty, i.e. no statement
 //      |      statement
 //      |      statement statements
@@ -32,8 +35,6 @@ static struct ASTnode *print_statement(void)
   // print ASTツリーを作成
   tree = mkastunary(A_PRINT, tree, 0);
 
-  // セミコロンがあるか調べる
-  semi();
   return (tree);
 }
 
@@ -62,8 +63,6 @@ static struct ASTnode *assignment_statement(void)
   // 代入のASTを作る
   tree = mkastnode(A_ASSIGN, left, NULL, right, 0);
 
-  // セミコロンが後ろにあるか調べる
-  semi();
   return (tree);
 }
 
@@ -74,7 +73,7 @@ static struct ASTnode *assignment_statement(void)
 // if_head: 'if' '(' true_false_expression ')' compound_statement  ;
 
 // else句を含む可能性のあるif文をパース
-struct ASTnode *if_statement(void)
+static struct ASTnode *if_statement(void)
 {
   struct ASTnode *condAST, *trueAST, *falseAST = NULL;
 
@@ -107,7 +106,7 @@ struct ASTnode *if_statement(void)
 //
 // Parse a WHILE statement
 // and return its AST
-struct ASTnode *while_statement(void)
+static struct ASTnode *while_statement(void)
 {
   struct ASTnode *condAST, *bodyAST;
 
@@ -129,7 +128,80 @@ struct ASTnode *while_statement(void)
   return (mkastnode(A_WHILE, condAST, NULL, bodyAST, 0));
 }
 
-// 合成ステートメントをパスしそのASTを返す
+// for_statement: 'for' '(' preop_statement ';'
+//                          true_false_expression ';'
+//                          postop_statement ')' compound_statement  ;
+//
+// preop_statement:  statement          (for now)
+// postop_statement: statement          (for now)
+//
+// FORステートメントをパースして
+// そのASTを返す
+static struct ASTnode *for_statement(void)
+{
+  struct ASTnode *condAST, *bodyAST;
+  struct ASTnode *preopAST, *postopAST;
+  struct ASTnode *tree;
+
+  // 'for'と'('があるか確認
+  match(T_FOR, "for");
+  lparen();
+
+  // pre_opステートメントと';'を取得
+  preopAST = single_statement();
+  semi();
+
+  // 条件式と';'を取得
+  condAST = binexpr(0);
+  if (condAST->op < A_EQ || condAST->op > A_GE)
+    fatal("不正な比較演算子です");
+  semi();
+
+  // post_opステートメントと')'を取得
+  postopAST = single_statement();
+  rparen();
+
+  // ループの中身となるcompoundステートメントを取得
+  bodyAST = compound_statement();
+
+  // 現段階では4つのサブツリーはNULLであってはならない。
+  // 後で空が混在しているときの意味解釈に手を加える。
+
+  // compoundステートメントとpostopツリーを結合
+  tree = mkastnode(A_GLUE, bodyAST, NULL, postopAST, 0);
+
+  // 条件式とループ本文でWHILEループを作る
+  tree = mkastnode(A_WHILE, condAST, NULL, tree, 0);
+
+  // preopツリーをA_WHILEツリーに結合
+  return (mkastnode(A_GLUE, preopAST, NULL, tree, 0));
+}
+
+// single statementをパースして
+// そのASTを返す
+static struct ASTnode *single_statement(void)
+{
+  switch (Token.token)
+  {
+  case T_PRINT:
+    return (print_statement());
+  case T_INT:
+    var_declaration();
+    return (NULL); // No AST generated here
+  case T_IDENT:
+    return (assignment_statement());
+  case T_IF:
+    return (if_statement());
+  case T_WHILE:
+    return (while_statement());
+  case T_FOR:
+    return (for_statement());
+  default:
+    fatald("構文エラー token", Token.token);
+  }
+}
+
+// 合成ステートメントをパースしそのASTを返す
 struct ASTnode *compound_statement(void)
 {
   struct ASTnode *left = NULL;
@@ -140,41 +212,27 @@ struct ASTnode *compound_statement(void)
 
   while (1)
   {
-    switch (Token.token)
-    {
-    case T_PRINT:
-      tree = print_statement();
-      break;
-    case T_INT:
-      var_declaration();
-      tree = NULL; // ここではASTを作らない
-      break;
-    case T_IDENT:
-      tree = assignment_statement();
-      break;
-    case T_IF:
-      tree = if_statement();
-      break;
-    case T_WHILE:
-      tree = while_statement();
-      break;
+    // single statementをパース
+    tree = single_statement();
+    // 後ろにセミコロンがつかないといけないステートメントか調べる
+    if (tree != NULL && (tree->op == A_PRINT || tree->op == A_ASSIGN))
+      semi();
 
-    case T_RBRACE:
-      // '}'を見つけたら終わりまでスキップしてASTを返す
-      rbrace();
-      return (left);
-    default:
-      fatald("構文エラー、token", Token.token);
-    }
-
-    // 新規ツリーが左が空であれば左に保存し、
-    // からでなければ左ツリーと新規ツリーを結合する
-    if (tree)
+    // それぞれのツリーに対し、左が空であれば左に保存し、
+    // そうでなければ新規ツリーと左を結合する
+    if (tree != NULL)
     {
       if (left == NULL)
         left = tree;
       else
         left = mkastnode(A_GLUE, left, NULL, tree, 0);
+    }
+    // '}'を見つけたらそこまでスキップし
+    // ASTを返す
+    if (Token.token == T_RBRACE)
+    {
+      rbrace();
+      return (left);
     }
   }
 }

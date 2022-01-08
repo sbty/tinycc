@@ -96,7 +96,7 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
   case A_WHILE:
     return (genWHILE(n));
   case A_GLUE:
-    // 子ステートメントそれぞれと
+    // 子ステートメントそれぞれと結合しレジスタを開放する
     genAST(n->left, NOREG, n->op);
     genfreeregs();
     genAST(n->right, NOREG, n->op);
