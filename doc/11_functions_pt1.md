@@ -50,3 +50,40 @@ struct ASTnode *function_declaration(void) {
 ```
 
 これは構文チェックとASTの構築をしますが、意味解釈のエラーチェックはほとんどしていません。関数が再宣言された場合は今はまだ気が付きません。
+
+## `main()`への変更
+
+上記の関数があれば、`main()`のコードを書き換えを複数の関数を順次パースするよう書き換えることができます。
+
+```c
+  scan(&Token);                 // 入力の最初のトークンを取得
+  genpreamble();                // プレアンブルを出力
+  while (1) {                   // 関数をパース
+    tree = function_declaration();
+    genAST(tree, NOREG, 0);     // アセンブリコードを出力
+    if (Token.token == T_EOF)   // EOFに到達したら終了
+      break;
+  }
+```
+
+`genpostamble()`の関数呼び出しを削除しています。これはその出力が、技術的には`main()`に対して生成されるアセンブリのポストアンブルであったためです。関数の先頭と末尾のコードを生成する関数が必要です。
+
+## 関数の汎用コード生成
+
+A_FUNCTION ASTノードができたので、汎用コード生成`gen.c`に変更を加えたほうがいいでしょう。上記の通り、これは単一の子を持つ単項ASTノードです。
+
+```c
+  // Return an 関数の名前枠と合成ステートメントサブツリーを持つA_FUNCTIONノードを返す
+  return(mkastunary(A_FUNCTION, tree, nameslot));
+```
+
+子は関数の中身となる合成ステートメントが入ったサブツリーを持ちます。合成ステートメントのコードを生成する前に関数の先頭を生成する必要が有ります。そのためのgenA()に追加するコードを示します。
+
+```c
+    case A_FUNCTION:
+      // コードの前に関数のプレアンブルを生成
+      cgfuncpreamble(Gsym[n->v.id].name);
+      genAST(n->left, NOREG, n->op);
+      cgfuncpostamble();
+      return (NOREG);
+```
