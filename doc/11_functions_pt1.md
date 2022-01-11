@@ -87,3 +87,78 @@ A_FUNCTION ASTノードができたので、汎用コード生成`gen.c`に変�
       cgfuncpostamble();
       return (NOREG);
 ```
+
+## x86-64コード生成
+
+次は関数にコードを生成してスタックとフレームポインタをセットし、関数の末尾で差し戻し(undo)たら、関数の呼び出し元へ返します。
+
+このコードは`cgpreamble()`と`cgpostamble()`にすでに有りますが、`cgpreamble()`には`printint()`のアセンブリコードも有ります。そのため、これらのアセンブリコードのスニペットは`cg.c`の新しい関数へと分離する必要が有ります。
+
+```c
+// アセンブリプレアンブルを出力
+void cgpreamble() {
+  freeall_registers();
+  // printint()のコードのみを出力
+}
+
+// 関数プレアンブルを出力
+void cgfuncpreamble(char *name) {
+  fprintf(Outfile,
+          "\t.text\n"
+          "\t.globl\t%s\n"
+          "\t.type\t%s, @function\n"
+          "%s:\n" "\tpushq\t%%rbp\n"
+          "\tmovq\t%%rsp, %%rbp\n", name, name, name);
+}
+
+// 関数ポストアンブルを出力
+void cgfuncpostamble() {
+  fputs("\tmovl $0, %eax\n" "\tpopq     %rbp\n" "\tret\n", Outfile);
+}
+```
+
+## 関数生成の機能をテスト
+
+新しいテストプログラム`tests/input08`は(printを除けば)Cに近づいてきました。
+
+```c
+void main()
+{
+  int i;
+  for (i= 1; i <= 10; i= i + 1) {
+    print i;
+  }
+}
+```
+
+`make test8`でテストを行うと
+
+```bash
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c
+    stmt.c sym.c tree.c
+./comp1 tests/input08
+cc -o out out.s
+./out
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+```
+
+アセンブリコードは前回のforループで生成されたものと同じなので触れません。
+
+しかし、言語は合成ステートメントの前に関数宣言が必要なので、これまでのテスト入力ファイルには`void main()`を入れてきました。
+
+テストプログラム`tests/input09`には2つの関数宣言があります。コンパイラは各関数のアセンブリコードを生成しますが、現段階では2つ目の関数を実行することはできません。
+
+## まとめ
+
+言語へ関数を追加するいいスタートが切れました。とりあえずかなり単純化された関数宣言のみです。
+
+次回はコンパイラへ型の追加を始めます。
