@@ -127,6 +127,10 @@ static int keyword(char *s)
         if (!strcmp(s, "while"))
             return (T_WHILE);
         break;
+    case 'v':
+        if (!strcmp(s, "void"))
+            return (T_VOID);
+        break;
     }
     return (0);
 }

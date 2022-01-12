@@ -71,23 +71,30 @@ void cgpreamble()
       "\tnop\n"
       "\tleave\n"
       "\tret\n"
-      "\n"
-      "\t.globl\tmain\n"
-      "\t.type\tmain, @function\n"
-      "main:\n"
-      "\tpushq\t%rbp\n"
-      "\tmovq	%rsp, %rbp\n",
+      "\n",
       Outfile);
 }
 
-// アセンブリポストアンブルを出力
-void cgpostamble()
+// 関数のプレアンブルを出力
+void cgfuncpreamble(char *name)
 {
-  fputs(
-      "\tmovl	$0, %eax\n"
-      "\tpopq	%rbp\n"
-      "\tret\n",
-      Outfile);
+  fprintf(Outfile,
+          "\t.text\n"
+          "\t.globl\t%s\n"
+          "\t.type\t%s, @function\n"
+          "%s:\n"
+          "\tpushq\t%%rbp\n"
+          "\tmovq\t%%rsp, %%rbp\n",
+          name, name, name);
+}
+
+// 関数のポストアンブルを出力
+void cgfuncpostamble()
+{
+  fputs("\tmovl $0, %eax\n"
+        "\tpopq %rbp\n"
+        "\tret\n",
+        Outfile);
 }
 
 // 整数リテラル値をレジスタに読み込む

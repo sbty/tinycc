@@ -43,11 +43,15 @@ void main(int argc, char *argv[])
         exit(1);
     }
 
-    scan(&Token);                // 入力ファイルの最初のトークンを取得
-    genpreamble();               // プレアンブルを出力
-    tree = compound_statement(); // 入力の合成ステートメントをパース
-    genAST(tree, NOREG, 0);      // アセンブリコードを生成
-    genpostamble();              // 入力されたステートメントをパース
+    scan(&Token);  // 入力ファイルの最初のトークンを取得
+    genpreamble(); // プレアンブルを出力
+    while (1)
+    {
+        tree = function_declaration(); // 入力の合成ステートメントをパース
+        genAST(tree, NOREG, 0);        // アセンブリコードを生成
+        if (Token.token == T_EOF)
+            break; // 入力されたステートメントをパース
+    }
     fclose(Outfile);
     exit(0);
 }

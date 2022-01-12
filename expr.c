@@ -2,6 +2,8 @@
 #include "data.h"
 #include "decl.h"
 
+// 式をパース
+
 // 主要な要素をパースして、ASTノードとして返すP
 static struct ASTnode *primary(void)
 {

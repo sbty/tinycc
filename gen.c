@@ -102,6 +102,12 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     genAST(n->right, NOREG, n->op);
     genfreeregs();
     return (NOREG);
+  case A_FUNCTION:
+    // コードより先に関数のプレアンブルを生成
+    cgfuncpreamble(Gsym[n->v.id].name);
+    genAST(n->left, NOREG, n->op);
+    cgfuncpostamble();
+    return (NOREG);
   }
 
   // ここからは汎用ASTノードの操作
@@ -160,10 +166,7 @@ void genpreamble()
 {
   cgpreamble();
 }
-void genpostamble()
-{
-  cgpostamble();
-}
+
 void genfreeregs()
 {
   freeall_registers();
