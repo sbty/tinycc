@@ -167,4 +167,126 @@ static struct ASTnode *primary(void) {
 }
 ```
 
-識別子についてはブローバルシンボルテーブルから簡単に型の詳細を取得できます。
+識別子についてはグローバルシンボルテーブルから簡単に型の詳細を取得できます。
+
+## 二項式の構築: 型の比較
+
+二項演算子を使って計算式を組み立てると、左右の子からの型が必要になるでしょう。2つの方に互換性がない場合、ここで型を拡張するのか、何もしないのか、あるいは式を拒絶するのかのいずれかを行うことになります。
+
+とりあえず、新しいファイル`type.c`に左右の型を比較する関数を用意します。以下はそのコードです。
+
+```c
+// 2つの基本型を引数に取り、それらが互換性があるならtrueを、そうでなければfalseを返す
+// また一方がもう一方に合わせるため拡張する必要があるか、0かA_WIDENを返す
+// onlyrightがtrueであれば左から右へ拡張する
+int type_compatible(int *left, int *right, int onlyright) {
+
+  // Voidはいずれの型とも互換性を持たない
+  if ((*left == P_VOID) || (*right == P_VOID)) return (0);
+
+  // 同じ方であれば互換性を持つ
+  if (*left == *right) { *left = *right = 0; return (1);
+  }
+
+  // P_CHARsをP_INTへ拡張
+  if ((*left == P_CHAR) && (*right == P_INT)) {
+    *left = A_WIDEN; *right = 0; return (1);
+  }
+  if ((*left == P_INT) && (*right == P_CHAR)) {
+    if (onlyright) return (0);
+    *left = 0; *right = A_WIDEN; return (1);
+  }
+  // 残りは互換性があるものとして扱う
+  *left = *right = 0;
+  return (1);
+}
+```
+
+かなりいろんなことをやっています。まず両方の型が同じであればtrueを返します。P_VOIDは他の型と混じり合うことはありません。
+
+片方がP_CHARでもう一方がP_INTであれば結果をP_INTへ拡張できます。ここで採用したやり方は渡される型情報を変更し、どちらかを0か、または新しいASTノード型のA_WIDENへ置き換える方法です。つまり範囲の狭い方の子の値を、広い範囲の値を持つ子のほうへ拡張するのです。
+
+引数`onlyright`が追加されています。これはA_ASSIGN ASTノードで、左の子の式を右にある変数lvalueに代入するときに使います。これがセットされていると、P_INT式をP_CHAR変数へ送らないようにします。
+
+以上でとりあえず他の型の組み合わせは無視します。
+
+このあたりは配列やポインタを実装するときに変更することになるでしょう。
+
+## 式の中にある`type_compatible()`
+
+今回3箇所で`type_compatible()`を使っています。まずは二項演算子による式のマージから始めます。`expr.c`の`binexpr()`を次のように変更しました。
+
+```c
+    // 2つの型が互換性があるか確認
+    lefttype = left->type;
+    righttype = right->type;
+    if (!type_compatible(&lefttype, &righttype, 0))
+      fatal("型に互換性がありません");
+
+    // 要求があれば片方を拡張する。型を示す値はA_WIDEN
+    if (lefttype)
+      left = mkastunary(lefttype, right->type, left, 0);
+    if (righttype)
+      right = mkastunary(righttype, left->type, right, 0);
+
+    // サブツリーを連結する。
+    // 同時にトークンをAST操作へ変換
+    left = mkastnode(arithop(tokentype), left->type, left, NULL, right, 0);
+```
+
+互換性のない型は拒否します。ですが`type_compatible()`が0ではない`lefttype`か`righttype`を返した場合、これらは実際にはA_WIDENです。これを利用して範囲の狭い子を子として、単項ASTノードを構築します。コード生成を見ると、子の値が拡張されなければならないのかわかるでしょう。
+
+## print式でのtype_compatible()の利用
+
+`print`キーワードを使うとき、出力するには`int`式が必要です。そこで`stmt.c`の`print_statement()`を変更します。
+
+```c
+static struct ASTnode *print_statement(void) {
+  struct ASTnode *tree;
+  int lefttype, righttype;
+  int reg;
+
+  ...
+  // 後続の式をパース
+  tree = binexpr(0);
+
+  // 2つの型が互換性があるか確認
+  lefttype = P_INT; righttype = tree->type;
+  if (!type_compatible(&lefttype, &righttype, 0))
+    fatal("型方に互換性がありません");
+
+  // 要求があればツリーを拡張
+  if (righttype) tree = mkastunary(righttype, P_INT, tree, 0);
+```
+
+## 変数への代入での`type_compatible()`の利用
+
+ここが型をチェックする必要のある最後の箇所になります。変数に代入する際、右側の式が拡張できるか確認する必要が有ります。範囲の広い型を狭い型への保存は拒否しなければなりません。`stmt.c`の`assignment_statement()`への追加コードは以下のようになります。
+
+```c
+static struct ASTnode *assignment_statement(void) {
+  struct ASTnode *left, *right, *tree;
+  int lefttype, righttype;
+  int id;
+
+  ...
+  // 変数に対してlvalueノードを作る
+  right = mkastleaf(A_LVIDENT, Gsym[id].type, id);
+
+  // 後続の式をパース
+  left = binexpr(0);
+
+  // 2つの方が互換性があるか確認
+  lefttype = left->type;
+  righttype = right->type;
+  if (!type_compatible(&lefttype, &righttype, 1))  // 1に注意
+    fatal("型に互換性がありません");
+
+  // 要求があれば左を拡張
+  if (lefttype)
+    left = mkastunary(lefttype, right->type, left, 0);
+```
+
+`type_compatible()`の呼び出しの最後にある1に気をつけてください。これで範囲の広い値から狭い方へ保存できないよう、意味解釈を強制しています。
+
+以上のことからいくつかの型をパースし、可能であれば値を拡張し、範囲の縮小を防ぎ不適切な型の衝突を防ぐ言語の意味解釈(semantics)を施行できます。次はコード生成です。
