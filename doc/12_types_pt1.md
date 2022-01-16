@@ -290,3 +290,84 @@ static struct ASTnode *assignment_statement(void) {
 `type_compatible()`の呼び出しの最後にある1に気をつけてください。これで範囲の広い値から狭い方へ保存できないよう、意味解釈を強制しています。
 
 以上のことからいくつかの型をパースし、可能であれば値を拡張し、範囲の縮小を防ぎ不適切な型の衝突を防ぐ言語の意味解釈(semantics)を施行できます。次はコード生成です。
+
+## x86-64コード生成への変更
+
+アセンブリ出力はレジスタ依存であり実質的にサイズは固定されています。影響を与えることができるのは
+
+- 変数を保存するメモリ位置のサイズ
+- レジスタがどれだけデータを保持しているか、文字なら1バイト、64ビット整数なら8バイト
+
+`cg.c`にあるx86-64専用のコードから始めます。その後、これが`gen.c`の汎用コード生成でどのように使われるかを示します。
+
+まず変数の保存場所の生成から始めます。
+
+```c
+// グローバルシンボルの生成
+void cgglobsym(int id) {
+  // P_INT か P_CHAR を選択
+  if (Gsym[id].type == P_INT)
+    fprintf(Outfile, "\t.comm\t%s,8,8\n", Gsym[id].name);
+  else
+    fprintf(Outfile, "\t.comm\t%s,1,1\n", Gsym[id].name);
+}
+```
+
+シンボルテーブルにある変数スロットから型を抽出し、型に応じて1かまたは8バイト確保するのかを選びます。そこでレジスタにこの値を読みこませる機能が必要になります。
+
+```c
+// 変数からレジスタへ値を読み込ませる
+// レジスタ番号を返す
+int cgloadglob(int id) {
+  // 新規にレジスタを取得
+  int r = alloc_register();
+
+  // レジスタを初期化するコードを出力 P_CHAR またはr P_INT
+  if (Gsym[id].type == P_INT)
+    fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
+  else
+    fprintf(Outfile, "\tmovzbq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
+  return (r);
+```
+
+`movq`命令は8バイトを8バイトレジスタへコピーします。`movzbq`は8バイトレジスタを0にし1バイトをそこでコピーします。これは暗黙的に1バイトから8バイトに拡張されます。ストレージ関数も同様です。
+
+```c
+// レジスタの値を変数に保存する
+int cgstorglob(int r, int id) {
+  // P_INT か P_CHAR を選ぶ
+  if (Gsym[id].type == P_INT)
+    fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], Gsym[id].name);
+  else
+    fprintf(Outfile, "\tmovb\t%s, %s(\%%rip)\n", breglist[r], Gsym[id].name);
+  return (r);
+}
+```
+
+今回は"byte"というレジスタ名と1バイトをコピーする`movb`命令を使うことになります。
+
+幸運なことに`cgloadglob()`関数はすでにP_CHAR変数の拡張を終えているので、以下は新しく追加した`cgwiden()`関数のコードになります。
+
+```c
+// 拡張前のレジスタから拡張後のレジスタへ値を拡張する
+// 拡張後の値が入ったレジスタを返す。
+int cgwiden(int r, int oldtype, int newtype) {
+  // なにもしない
+  return (r);
+}
+```
+
+## 汎用コード生成への変更点
+
+上記変更に伴い、`gen.c`の汎用コード生成にもいくつか変更が必要です。
+
+- `cgloadglob()`と`cgstorglob()`の呼び出しはシンボルの名前ではなく、スロット番号を引数に取る
+- 同様に`genglobsym()`はシンボルのスロット番号を受取り、それを`cgglobsym()`へ渡す
+
+大きな変更点は新しく追加したA_WIDEN ASTノード型の処理だけです。(`cgwiden()`は何もしていないので)不要ですが、他ハードウェアプラットフォームのために用意しました。
+
+```c
+    case A_WIDEN:
+      // 子の型を親の方へ拡張
+      return (cgwiden(leftreg, n->left->type, n->type));
+```
