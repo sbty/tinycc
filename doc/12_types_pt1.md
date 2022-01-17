@@ -371,3 +371,78 @@ int cgwiden(int r, int oldtype, int newtype) {
       // 子の型を親の方へ拡張
       return (cgwiden(leftreg, n->left->type, n->type));
 ```
+
+## 追加した型への変更をテスト
+
+テスト入力`tests/input10`は以下の内容です。
+
+```c
+void main()
+{
+  int i; char j;
+
+  j= 20; print j;
+  i= 10; print i;
+
+  for (i= 1;   i <= 5; i= i + 1) { print i; }
+  for (j= 253; j != 2; j= j + 1) { print j; }
+}
+```
+
+代入と`char`と`int`型の出力ができるか確認しています。また`char`変数がオーバーフローして253, 254, 255, 0, 1, 2となるか検証しています。
+
+```bash
+$ make test
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c
+   stmt.c sym.c tree.c types.c
+./comp1 tests/input10
+cc -o out out.s
+./out
+20
+10
+1
+2
+3
+4
+5
+253
+254
+255
+0
+1
+```
+
+出力されたアセンブリは以下のとおりです。
+
+```assembly
+        .comm   i,8,8                   # 8バイトの i の保存先
+        .comm   j,1,1                   # 1バイトの j の保存先
+        ...
+        movq    $20, %r8
+        movb    %r8b, j(%rip)           # j= 20
+        movzbq  j(%rip), %r8
+        movq    %r8, %rdi               # print j
+        call    printint
+
+        movq    $253, %r8
+        movb    %r8b, j(%rip)           # j= 253
+L3:
+        movzbq  j(%rip), %r8
+        movq    $2, %r9
+        cmpq    %r9, %r8                # while j != 2
+        je      L4
+        movzbq  j(%rip), %r8
+        movq    %r8, %rdi               # print j
+        call    printint
+        movzbq  j(%rip), %r8
+        movq    $1, %r9                 # j= j + 1
+        addq    %r8, %r9
+        movb    %r9b, j(%rip)
+        jmp     L3
+```
+
+洗練されたアセンブリコードではありませんが、機能しています。`$ make tests` でこれまでのコードが全て動くか確認しています。
+
+## まとめ
+
+次回は引数を伴う関数呼び出しとその戻り値を追加していきます。
