@@ -143,11 +143,11 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
       return (cgcompare_and_set(n->op, leftreg, rightreg));
 
   case A_INTLIT:
-    return (cgloadint(n->v.intvalue));
+    return (cgloadint(n->v.intvalue, n->type));
   case A_IDENT:
-    return (cgloadglob(Gsym[n->v.id].name));
+    return (cgloadglob(n->v.id));
   case A_LVIDENT:
-    return (cgstorglob(reg, Gsym[n->v.id].name));
+    return (cgstorglob(reg, n->v.id));
   case A_ASSIGN:
     // やることを終えたので結果を返す
     return (rightreg);
@@ -156,6 +156,9 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     genprintint(leftreg);
     genfreeregs();
     return (NOREG);
+  case A_WIDEN:
+    // 子の型を親の型へ拡張
+    return (cgwiden(leftreg, n->left->type, n->type));
 
   default:
     fatald("不明なAST操作です", n->op);
@@ -176,7 +179,7 @@ void genprintint(int reg)
   cgprintint(reg);
 }
 
-void genglobsym(char *s)
+void genglobsym(int id)
 {
-  cgglobsym(s);
+  cgglobsym(id);
 }

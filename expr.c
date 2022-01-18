@@ -16,7 +16,11 @@ static struct ASTnode *primary(void)
   {
   case T_INTLIT:
     // INTLITトークンであればAST葉ノードを作る
-    n = mkastleaf(A_INTLIT, Token.intvalue);
+    // P_CHARの範囲内であればP_CHARで作る
+    if ((Token.intvalue) >= 0 && (Token.intvalue < 256))
+      n = mkastleaf(A_INTLIT, P_CHAR, Token.intvalue);
+    else
+      n = mkastleaf(A_INTLIT, P_INT, Token.intvalue);
     break;
 
   case T_IDENT:
@@ -26,7 +30,7 @@ static struct ASTnode *primary(void)
       fatals("不明な変数", Text);
 
     // AST葉ノードを作る
-    n = mkastleaf(A_IDENT, id);
+    n = mkastleaf(A_IDENT, Gsym[id].type, id);
     break;
 
   default:
@@ -66,6 +70,7 @@ static int op_precedence(int tokentype)
 struct ASTnode *binexpr(int ptp)
 {
   struct ASTnode *left, *right;
+  int lefttype, righttype;
   int tokentype;
 
   // 左の整数リテラルを取得
@@ -88,9 +93,22 @@ struct ASTnode *binexpr(int ptp)
     // サブツリーを構築
     right = binexpr(OpPrec[tokentype]);
 
+    // 2つの型に互換性があるか確認
+    lefttype = left->type;
+    righttype = right->type;
+    if (!type_compatible(&lefttype, &righttype, 0))
+      fatal("型に互換性がありません");
+
+    // 要求があればどちらか一方を拡張する
+    // k型を表す変数はA_WIDEN
+    if (lefttype)
+      left = mkastunary(lefttype, right->type, left, 0);
+    if (righttype)
+      right = mkastunary(righttype, left->type, right, 0);
+
     // サブツリーを結合する。
     // 同時にトークンをAST操作に変換
-    left = mkastnode(arithop(tokentype), left, NULL, right, 0);
+    left = mkastnode(arithop(tokentype), left->type, left, NULL, right, 0);
 
     // 現在のトークンの詳細を更新
     // セミコロンか')'を見つけたら左ノードを返す

@@ -4,22 +4,42 @@
 
 // 宣言のパース
 
+// 今見ているトークンをパースし
+// その基本的な型をenumの値で返す
+int parse_type(int t)
+{
+  if (t == T_CHAR)
+    return (P_CHAR);
+  if (t == T_INT)
+    return (P_INT);
+  if (t == T_VOID)
+    return (P_VOID);
+  fatald("不正な型, token", t);
+}
+
+// variable_declaration: 'int' identifier ';'  ;
 // 変数宣言のパース
 void var_declaration(void)
 {
+  int id, type;
 
-  // 'int'トークンの後ろに識別子とセミコロンがあるか確認する
-  // Textに識別子名が入る
-  // 既知の識別子として加える
-  match(T_INT, "int");
+  // 変数の型を取得し、その後識別子を取得する
+  type = parse_type(Token.token);
+  scan(&Token);
   ident();
-  addglob(Text);
-  genglobsym(Text);
+
+  // Textには識別子の名前が入っている
+  // 既知の識別子として登録
+  // アセンブリでその場所を生成
+  id = addglob(Text, type, S_VARIABLE);
+  genglobsym(id);
+
+  // 後続のセミコロンを取得
   semi();
 }
 
 // 今の所、関数宣言はかなり単純化された文法
-// 関数宣言: 'void' identifier '(' ')' 合成ステートメント;
+// function_declaration: 'void' identifier '(' ')' compound_statement   ;
 
 // 単純化された関数の宣言をパース
 struct ASTnode *function_declaration(void)
@@ -31,7 +51,7 @@ struct ASTnode *function_declaration(void)
   // 今はまだそれらに対して何もしない
   match(T_VOID, "void");
   ident();
-  nameslot = addglob(Text);
+  nameslot = addglob(Text, P_VOID, S_FUNCTION);
   lparen();
   rparen();
 
@@ -40,5 +60,5 @@ struct ASTnode *function_declaration(void)
 
   // 関数の名前枠と合成ステートメントのサブツリーを持つ
   // A_FUNCTIONノードを返す
-  return (mkastunary(A_FUNCTION, tree, nameslot));
+  return (mkastunary(A_FUNCTION, P_VOID, tree, nameslot));
 }

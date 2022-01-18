@@ -35,7 +35,8 @@ enum
   T_ELSE,
   T_WHILE,
   T_FOR,
-  T_VOID
+  T_VOID,
+  T_CHAR
 };
 
 struct token
@@ -65,13 +66,24 @@ enum
   A_GLUE,
   A_IF, //
   A_WHILE,
-  A_FUNCTION
+  A_FUNCTION,
+  A_WIDEN
+};
+
+// primitive types
+enum
+{
+  P_NONE,
+  P_VOID,
+  P_CHAR,
+  P_INT
 };
 
 // AST構造体
 struct ASTnode
 {
   int op;               // このツリーで実行される操作
+  int type;             // このツリーを生成した式の型
   struct ASTnode *left; // 左右の子ツリー
   struct ASTnode *mid;
   struct ASTnode *right;
@@ -84,9 +96,17 @@ struct ASTnode
 };
 
 #define NOREG -1 // AST生成関数が返すレジスタがないときに使う
+// 構造上の型
+enum
+{
+  S_VARIABLE,
+  S_FUNCTION
+};
 
 // シンボルテーブル構造体
 struct symtable
 {
   char *name; // シンボル名
+  int type;   // シンボルのprimitive type
+  int stype;  // シンボルの構造上の型
 };

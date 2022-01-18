@@ -99,7 +99,7 @@ void cgfuncpostamble()
 
 // 整数リテラル値をレジスタに読み込む
 // レジスタ番号を返す
-int cgloadint(int value)
+int cgloadint(int value, int type)
 {
   // 新規にレジスタを確保();
   int r = alloc_register();
@@ -111,13 +111,16 @@ int cgloadint(int value)
 
 // 変数からレジスタに値を読み込む
 // レジスタ番号を返す
-int cgloadglob(char *identifier)
+int cgloadglob(int id)
 {
   // 新規にレジスタを取得
   int r = alloc_register();
 
-  // 初期化コードを出力
-  fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", identifier, reglist[r]);
+  // 初期化コードを出力:P_CHARかP_INT
+  if (Gsym[id].type == P_INT)
+    fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
+  else
+    fprintf(Outfile, "\tmovzbq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
   return (r);
 }
 
@@ -169,16 +172,25 @@ void cgprintint(int r)
 }
 
 // レジスタの値を変数に保存
-int cgstorglob(int r, char *identifier)
+int cgstorglob(int r, int id)
 {
-  fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], identifier);
+  // P_INTかP_CHARを選ぶ
+  if (Gsym[id].type == P_INT)
+    fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], Gsym[id].name);
+  else
+    fprintf(Outfile, "\tmovb\t%s, %s(\%%rip)\n", breglist[r], Gsym[id].name);
+
   return (r);
 }
 
 // グローバルシンボルを生成
-void cgglobsym(char *sym)
+void cgglobsym(int id)
 {
-  fprintf(Outfile, "\t.comm\t%s,8,8\n", sym);
+  // P_INTかP_CHARを選ぶ
+  if (Gsym[id].type == P_INT)
+    fprintf(Outfile, "\t.comm\t%s,8,8\n", Gsym[id].name);
+  else
+    fprintf(Outfile, "\t.comm\t%s,1,1\n", Gsym[id].name);
 }
 
 // 比較命令のリスト
@@ -229,4 +241,12 @@ int cgcompare_and_jump(int ASTop, int r1, int r2, int label)
   fprintf(Outfile, "\t%s\tL%d\n", invcmplist[ASTop - A_EQ], label);
   freeall_registers();
   return (NOREG);
+}
+
+// レジスタの値を拡張前から拡張後の新しい型へと拡張する
+// 値を格納したレジスタを返す
+int cgwiden(int r, int oldtype, int newtype)
+{
+  // なにもしない
+  return (r);
 }

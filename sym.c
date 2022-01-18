@@ -33,7 +33,7 @@ static int newglob(void)
 
 // グローバルシンボルをシンボルテーブルに追加する
 // シンボルテーブルのスロット番号を返す
-int addglob(char *name)
+int addglob(char *name, int type, int stype)
 {
   int y;
 
@@ -44,5 +44,8 @@ int addglob(char *name)
   // なければ新規スロットを取得して格納し、そのスロット番号を返す
   y = newglob();
   Gsym[y].name = strdup(name);
+  Gsym[y].type = type;
+  Gsym[y].stype = stype;
+
   return (y);
 }
