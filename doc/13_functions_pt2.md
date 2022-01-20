@@ -25,3 +25,44 @@
 ```c
 function_call: identifier '(' expression ')'   ;
 ```
+
+関数は名前の後ろに括弧のペアがきます。括弧の中に1つの引数が必要です。これを式と単体のステートメントの両方で使えるようにしたいです。
+
+そこで`expr.c`にある関数呼び出しパーサ、`funccall()`から取り掛かります。呼ばれたときに、識別子はすでにスキャンされ関数名はグローバル変数`Text`にあります。
+
+```c
+// 単一の式を引数とする関数呼び出しをパースし
+// ASTを返す
+struct ASTnode *funccall(void) {
+  struct ASTnode *tree;
+  int id;
+
+  // 識別子が定義されているか調べ
+  // それから葉ノードをつくる
+  if ((id = findglob(Text)) == -1) {
+    fatals("宣言されていない関数", Text);
+  }
+  // '(' を取得
+  lparen();
+
+  // 後続の式をパース
+  tree = binexpr(0);
+
+  // 関数呼び出しASTノードを作成
+  // 関数の戻り値をノードの型として保存
+  // 関数のシンボルIDを記録
+  tree = mkastunary(A_FUNCCALL, Gsym[id].type, tree, id);
+
+  // ')' を取得
+  rparen();
+  return (tree);
+}
+```
+
+関数や変数が定義されたとき、シンボルテーブルは構造上の型S_FUNCTIONとS_VARIABLEでそれぞれマークされます。本来はここに識別子が本当にS_FUNCTIONか確認するコードを加えるべきです。
+
+単項ASTノード、A_FUNCCALLを追加します。子は引数として渡す単体の式です。ノード内にある関数のシンボルidを保存し、関数の戻り値の型を記録します。
+
+## 不要なトークン
+
+パースに関して問題が有ります。
