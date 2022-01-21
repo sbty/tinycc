@@ -65,4 +65,68 @@ struct ASTnode *funccall(void) {
 
 ## 不要なトークン
 
-パースに関して問題が有ります。
+パースに関して問題が有ります。次の2つを区別しなければなりません。
+
+```c
+x = fred + jim;
+x = fred(5) + jim;
+```
+
+1つ先のトークンを見て'('があるか確認する必要が有ります。あるならば関数呼び出しになります。でえすがこれを行うと既存のトークンを失います。これを解決するため、不要なトークンを差し戻せるようスキャナを変更します。トークンを返すとき、新しいものではなく次のトークンを返すようにしました。`scan.c`の追加コードは以下になります。
+
+```c
+// 拒否されたトークンへのポインタ
+static struct token *Rejtoken = NULL;
+
+// スキャンしたばかりのトークンを拒否
+void reject_token(struct token *t) {
+  if (Rejtoken != NULL)
+    fatal("トークンを2回拒否はできません。");
+  Rejtoken = t;
+}
+
+// スキャンして入力から見つけたトークンを返す
+// トークンが有効であれば1，トークンがなければ0を返す
+int scan(struct token *t) {
+  int c, tokentype;
+
+  // 拒否したトークンがあればそれを返す
+  if (Rejtoken != NULL) {
+    t = Rejtoken;
+    Rejtoken = NULL;
+    return (1);
+  }
+
+  // 通常のスキャンを続ける
+  ...
+}
+```
+
+## 式としての関数呼び出し
+
+`expr.c`を見ていきます。`primary()`変数名と関数呼び出しを区別しなければなりません。追加コードは以下になります。
+
+```c
+// 主要素をパースしそれらを表すASTノードを返す
+static struct ASTnode *primary(void) {
+  struct ASTnode *n;
+  int id;
+
+  switch (Token.token) {
+    ...
+    case T_IDENT:
+      // 変数か関数呼び出しとなる
+      // 判別するために次のトークンをスキャン
+      scan(&Token);
+
+      // '(' なら関数呼び出し
+      if (Token.token == T_LPAREN)
+        return (funccall());
+
+      // 関数呼び出しでないならトークンを拒否
+      reject_token(&Token);
+
+      // 通常の変数パースを続ける
+      ...
+}
+```
