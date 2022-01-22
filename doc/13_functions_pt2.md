@@ -104,7 +104,7 @@ int scan(struct token *t) {
 
 ## 式としての関数呼び出し
 
-`expr.c`を見ていきます。`primary()`変数名と関数呼び出しを区別しなければなりません。追加コードは以下になります。
+`expr.c`を見ていきます。`primary()`で変数名と関数呼び出しを区別しなければなりません。追加コードは以下になります。
 
 ```c
 // 主要素をパースしそれらを表すASTノードを返す
@@ -130,3 +130,107 @@ static struct ASTnode *primary(void) {
       ...
 }
 ```
+
+## ステートメントとしての関数呼び出し
+
+関数をステートメントとして呼び出そうとするときにも同じ問題があります。次の2つを区別しなければなりません。
+
+```c
+  fred = 2;
+  fred(18);
+```
+
+`stmt.c`に追加するステートメントのコードは上記のものと同じようになります。
+
+```c
+// 代入ステートメントをパースしそのASTを返す
+static struct ASTnode *assignment_statement(void) {
+  struct ASTnode *left, *right, *tree;
+  int lefttype, righttype;
+  int id;
+
+  // 識別子があるか確認
+  ident();
+
+  // 変数または関数呼び出し
+  // 次のトークンが'('であれば関数呼び出し
+  if (Token.token == T_LPAREN)
+    return (funccall());
+
+  // 関数呼び出しではないので代入
+  ...
+}
+```
+
+ここで不要なトークンを拒否することなくやれているのは、次のトークンが必ず'='か'('であり、これが正しいとわかっているからパーサコードを書けています。
+
+## return文のパース
+
+BNFでは、return文は次のようになります。
+
+```c
+return_statement: 'return' '(' expression ')'  ;
+```
+
+パースは簡単で、'return'、'('、`binexpr()`の呼び出し、')'、以上です。それよりも問題は型のチェックと、全く返さないことを許容するかどうかです。
+
+return文に到達したときに、実際にどの関数にいるのか知る必要が有ります。`data.h`にグローバル変数を追加しました。
+
+```c
+extern_ int Functionid; // 現在の関数のシンボルID
+```
+
+そして`decl.c`の`function_declaration()`で次のように設定します。
+
+```c
+struct ASTnode *function_declaration(void) {
+  ...
+  // 関数をシンボルテーブルに追加し
+  // グローバルのFunctionidをセット
+  nameslot = addglob(Text, type, S_FUNCTION, endlabel);
+  Functionid = nameslot;
+  ...
+}
+```
+
+関数宣言に入るたびにFunctionidを設定することでreturn文のパースや意味解釈のチェックに戻ることができます。以下が`stmt.c`の`return_statement()`の追加コードです。
+
+```c
+// return文をパースしそのASTを返す
+static struct ASTnode *return_statement(void) {
+  struct ASTnode *tree;
+  int returntype, functype;
+
+  // 関数がP_VOIDを返す場合は値を返さない
+  if (Gsym[Functionid].type == P_VOID)
+    fatal("void関数からは値を返せません");
+
+  // 'return' と '(' があるか確認
+  match(T_RETURN, "return");
+  lparen();
+
+  // 後続をパース
+  tree = binexpr(0);
+
+  // 関数の型と互換性があるか確認
+  returntype = tree->type;
+  functype = Gsym[Functionid].type;
+  if (!type_compatible(&returntype, &functype, 1))
+    fatal("型に互換性がありません");
+
+  // 必要があれば左を拡張
+  if (returntype)
+    tree = mkastunary(returntype, functype, tree, 0);
+
+  // A_RETURNノードにつなげる
+  tree = mkastunary(A_RETURN, P_NONE, tree, 0);
+
+  // ')' を取得
+  rparen();
+  return (tree);
+}
+```
+
+子ツリーの式を返すA_RETURN ASTノードを追加しました。`type_compatible()`を使って式が戻り値の型と一致するか確認し、必要であれば拡張します。
+
+最後に、関数が本当にvoidで宣言されていたか確認します。本当ならこの関数内でreturn文は実行できません。
