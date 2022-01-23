@@ -234,3 +234,61 @@ static struct ASTnode *return_statement(void) {
 子ツリーの式を返すA_RETURN ASTノードを追加しました。`type_compatible()`を使って式が戻り値の型と一致するか確認し、必要であれば拡張します。
 
 最後に、関数が本当にvoidで宣言されていたか確認します。本当ならこの関数内でreturn文は実行できません。
+
+## 型の見直し
+
+前回で`type_compatible()`を導入し、リファクタリングについて触れました。`long`型を追加したので今では必須となりました。そこで`type.c`の新バージョンを用意しました。前回の最後の解説を見直すのみいいかもしれません。
+
+```c
+// 2つの基本型を引数にとり
+// 互換性があればtrue、そうでなければfalseを返す
+// さらに一方をもう一方に合わせるために拡張する必要があれば
+// A_WIDENか0を返す。
+// onlyrightがtrueであれば左だけを右へ拡張する
+
+int type_compatible(int *left, int *right, int onlyright) {
+  int leftsize, rightsize;
+
+  // 同じ方であれば互換性がある
+  if (*left == *right) { *left = *right = 0; return (1); }
+  // 各型のサイズを取得
+  leftsize = genprimsize(*left);
+  rightsize = genprimsize(*right);
+
+  // 型のサイズが0であればどの型とも互換性がない
+  if ((leftsize == 0) || (rightsize == 0)) return (0);
+
+  // 必要なら型を拡張
+  if (leftsize < rightsize) { *left = A_WIDEN; *right = 0; return (1);
+  }
+  if (rightsize < leftsize) {
+    if (onlyright) return (0);
+    *left = 0; *right = A_WIDEN; return (1);
+  }
+  // 残りは同じサイズであるため互換性がある
+  *left = *right = 0;
+  return (1);
+}
+```
+
+汎用コード生成で`genprimesize()`を呼び出し、`cg.c`の`cgprimesize`を呼んで型のサイズを取得しています。
+
+```c
+// P_XXX で並ぶ型のサイズの配列
+// 0 はサイズなし P_NONE, P_VOID, P_CHAR, P_INT, P_LONG
+static int psize[] = { 0,       0,      1,     4,     8 };
+
+// P_XXX型の値を引数にとり、基本型のサイズをバイトで返す
+int cgprimsize(int type) {
+  // 型が有効か調べる
+  if (type < P_NONE || type > P_LONG)
+    fatal("cgprimsize()に不正な型が渡されました");
+  return (psize[type]);
+}
+```
+
+これにより型のサイズはプラットフォーム依存となり、別のプラットフォームでは異なる型サイズとなりえます。おそらく`P_INTLIT`を`int`ではなく`char`としているのは、リファクタリングされるべきかもしれません。
+
+```c
+if ((Token.intvalue) >= 0 && (Token.intvalue < 256))if ((Token.intvalue) >= 0 && (Token.intvalue < 256))
+```
