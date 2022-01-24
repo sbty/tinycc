@@ -249,7 +249,7 @@ static struct ASTnode *return_statement(void) {
 int type_compatible(int *left, int *right, int onlyright) {
   int leftsize, rightsize;
 
-  // 同じ方であれば互換性がある
+  // 同じ型であれば互換性がある
   if (*left == *right) { *left = *right = 0; return (1); }
   // 各型のサイズを取得
   leftsize = genprimsize(*left);
@@ -292,3 +292,185 @@ int cgprimsize(int type) {
 ```c
 if ((Token.intvalue) >= 0 && (Token.intvalue < 256))if ((Token.intvalue) >= 0 && (Token.intvalue < 256))
 ```
+
+## 非void関数は必ず値を返すようにする
+
+void関数が値を返さないよう確認しました。次はどうやって非void関数に常に値を返させるかです。そのためには、関数の最後のステートメントがreturn文であることを確認する必要が有ります。
+
+`decl.c`にある`function_declaration()`の終わりで次のようにしています。
+
+```c
+struct ASTnode *tree, *finalstmt;
+  ...
+  // 関数の型がP_VOIDでなければ合成ステートメントの
+  // 最後のAST操作がreturn文であったか確認する
+  if (type != P_VOID) {
+    finalstmt = (tree->op == A_GLUE) ? tree->right : tree;
+    if (finalstmt == NULL || finalstmt->op != A_RETURN)
+      fatal("非void型の関数が値を返していません。");
+  }
+```
+
+関数が1つのステートメントしか持たないのであればA_GLUE ASTノードはなく、ツリーは合成ステートメントである左の子しかも持たないことになります。
+
+この時点で以下のことができます。
+
+- 関数の宣言、その型の保存、その関数内にいる記録
+- 1つの引数を伴う関数呼び出し(式あるいはステートメント)
+- 非void関数(のみ)からのreturn、非void関数内の最後のステートメントをreturn文に強制
+- 返される式が関数の型定義と一致するか調べ、拡張する
+
+ASTツリーにreturn分と関数呼び出しのためのA_RETURNとA_FUNCCALLノードが追加されました。これらがどのようにアセンブリを出力するか見ていきます。
+
+## 引数が1つである理由
+
+`print x;`を関数呼び出し`printint(x);`と置き換えたいからです。これにより本物のCの関数`printint()`をコンパイルしコンパイラの出力とリンクすることができます。
+
+## 追加されたASTノード
+
+`gen.c`の`genAST()`に追加されたコードはそれほど多くありません。
+
+```c
+    case A_RETURN:
+      cgreturn(leftreg, Functionid);
+      return (NOREG);
+    case A_FUNCCALL:
+      return (cgcall(leftreg, n->v.id));
+```
+
+A_RETURN は式でないため値を返しません。A_FUNCCALLはもちろん式です。
+
+## x86-64出力の変更
+
+コード生成に追加された内容は`cg.c`内にあるプラットフォーム依存のコード生成の箇所です。
+
+### 追加された型
+
+はじめに、現段階で`char`、`int`、`long`があり、x86-64は我々に各型に対して適切なレジスタ名を使うよう求めます。
+
+```c
+// 利用可能なレジスタとその名前のリスト
+static int freereg[4];
+static char *reglist[4] = { "%r8", "%r9", "%r10", "%r11" };
+static char *breglist[4] = { "%r8b", "%r9b", "%r10b", "%r11b" };
+static char *dreglist[4] = { "%r8d", "%r9d", "%r10d", "%r11d" }
+```
+
+### 変数の定義、読み込み、保存
+
+変数は3種の型を持てるようになりました。生成されるコードはこれを反映しなければなりません。変更のある関数は以下のとおりです。
+
+```c
+// Generate a global symbol
+void cgglobsym(int id) {
+  int typesize;
+  // Get the size of the type
+  typesize = cgprimsize(Gsym[id].type);
+
+  fprintf(Outfile, "\t.comm\t%s,%d,%d\n", Gsym[id].name, typesize, typesize);
+}
+
+// 変数からレジスタへ値を読み込む
+// レジスタ番号を返す
+int cgloadglob(int id) {
+  // 新しくレジスタを取得
+  int r = alloc_register();
+
+  // レジスタを初期化するコードを出力
+  switch (Gsym[id].type) {
+    case P_CHAR:
+      fprintf(Outfile, "\tmovzbq\t%s(\%%rip), %s\n", Gsym[id].name,
+              reglist[r]);
+      break;
+    case P_INT:
+      fprintf(Outfile, "\tmovzbl\t%s(\%%rip), %s\n", Gsym[id].name,
+              reglist[r]);
+      break;
+    case P_LONG:
+      fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
+      break;
+    default:
+      fatald("cgloadglob:型が不正です", Gsym[id].type);
+  }
+  return (r);
+}
+
+// レジスタの値を変数に保存
+int cgstorglob(int r, int id) {
+  switch (Gsym[id].type) {
+    case P_CHAR:
+      fprintf(Outfile, "\tmovb\t%s, %s(\%%rip)\n", breglist[r],
+              Gsym[id].name);
+      break;
+    case P_INT:
+      fprintf(Outfile, "\tmovl\t%s, %s(\%%rip)\n", dreglist[r],
+              Gsym[id].name);
+      break;
+    case P_LONG:
+      fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], Gsym[id].name);
+      break;
+    default:
+      fatald("cgloadglob:不正な型です", Gsym[id].type);
+  }
+  return (r);
+}
+```
+
+### 関数の呼び出し
+
+1つの引数をつけて関数を呼ぶには、引数の値が入ったレジスタを`%rdi`へコピーする必要が有ります。戻り値では、%raxから返ってきた値を新しい値を入れるレジスタへコピーする必要が有ります。
+
+```c
+// 引数として与えたレジスタで1つの引数を伴う関数を呼び出す
+// 結果の入ったレジスタを返す
+int cgcall(int r, int id) {
+  // 新しくレジスタを取得
+  int outr = alloc_register();
+  fprintf(Outfile, "\tmovq\t%s, %%rdi\n", reglist[r]);
+  fprintf(Outfile, "\tcall\t%s\n", Gsym[id].name);
+  fprintf(Outfile, "\tmovq\t%%rax, %s\n", reglist[outr]);
+  free_register(r);
+  return (outr);
+}
+```
+
+### 関数の戻り値
+
+関数の実行中どの地点からでも値を返すには、関数の終わりにあるラベルへジャンプする必要が有ります。`function_declaration()`にラベルを作り、シンボルテーブルにそれを保存するコードを追加しました。戻り値は`%rax`レジスタに残るので、最後のラベルへジャンプする前にこのレジスタへコピーする必要があります。
+
+```c
+// 関数からの戻り値を生成するコード
+void cgreturn(int reg, int id) {
+  // 生成するコードは関数の型に依存する
+  switch (Gsym[id].type) {
+    case P_CHAR:
+      fprintf(Outfile, "\tmovzbl\t%s, %%eax\n", breglist[reg]);
+      break;
+    case P_INT:
+      fprintf(Outfile, "\tmovl\t%s, %%eax\n", dreglist[reg]);
+      break;
+    case P_LONG:
+      fprintf(Outfile, "\tmovq\t%s, %%rax\n", reglist[reg]);
+      break;
+    default:
+      fatald("cgreturn:関数の型が不正です", Gsym[id].type);
+  }
+  cgjump(Gsym[id].endlabel);
+}
+```
+
+### 関数プレアンブルとポストアンブルへの変更
+
+プレアンブルには変更ありませんが、以前は値を返す際に`%rax`に0をセットしていました。これを削除する必要が有ります。
+
+```c
+// 関数のポストアンブルを出力
+void cgfuncpostamble(int id) {
+  cglabel(Gsym[id].endlabel);
+  fputs("\tpopq %rbp\n" "\tret\n", Outfile);
+}
+```
+
+### 初期プレアンブルへの変更
+
+これまで手動で`printint()`のアセンブリを出力の先頭に挿入していました。これはもう必要ありません。本物のCの関数`printint()`をコンパイルできるようになったので、コンパイラからの出力とリンクさせればいいのです。
