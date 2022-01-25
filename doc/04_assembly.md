@@ -292,6 +292,6 @@ main:
 次回はいくつか機能を付け足し、本物のコンパイラに近づけていきます。
 
 ### メモ
-suffix `q`は"quadword"、8バイトを意味します。`movq %rax, %rbx​`は8バイト分`%rax`から`%rbx`へデータをコピー、を意味します。
+ニーモニックのsuffix `q`は"quadword"、8バイトを意味します。`movq %rax, %rbx​`は8バイト分`%rax`から`%rbx`へデータをコピー、を意味します。
 
 同様にsuffix `l`は"doubleword"で4バイト、suffix `w`は"word"で2バイト、suffix `b`は"byte"で1バイトをそれぞれ意味します。

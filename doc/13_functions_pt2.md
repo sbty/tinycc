@@ -474,3 +474,65 @@ void cgfuncpostamble(int id) {
 ### 初期プレアンブルへの変更
 
 これまで手動で`printint()`のアセンブリを出力の先頭に挿入していました。これはもう必要ありません。本物のCの関数`printint()`をコンパイルできるようになったので、コンパイラからの出力とリンクさせればいいのです。
+
+## 変更点のテスト
+
+`tests/input14`を用意しました。
+
+```c
+int fred() {
+  return(20);
+}
+
+void main() {
+  int result;
+  printint(10);
+  result= fred(15);
+  printint(result);
+  printint(fred(15)+10);
+  return(0);
+}
+```
+
+最初に10を出力し、それから20を返す`fred()`を予備、それを出力します。再度`fred()`を呼び戻り値に10を足して30とします。これは1つの引数による関数呼び出しとその戻り値の説明です。結果は以下になります。
+
+```bash
+cc -o comp1 -g cg.c decl.c expr.c gen.c main.c misc.c scan.c
+    stmt.c sym.c tree.c types.c
+./comp1 tests/input14
+cc -o out out.s lib/printint.c
+./out; true
+10
+20
+30
+```
+
+アセンブリの出力を`lib/printint.c`とリンクしています。
+
+```c
+#include <stdio.h>
+void printint(long x) {
+  printf("%ld\n", x);
+}
+```
+
+## Cに
+
+この変更により、次のことが可能となりました。
+
+```bash
+$ cat lib/printint.c tests/input14 > input14.c
+$ cc -o out input14.c
+$ ./out
+10
+20
+30
+```
+
+つまりCのサブセットとしては十分でありCの関数をコンパイルして実行ファイルを手に入れることが可能です。
+
+## まとめ
+
+関数呼び出しと返り値の簡易バージョンに加えて、新しいデータ型も追加しました。予想通り簡単ではありませんでしたが、変更は妥当なものだったと思います。
+
+次回は新たなハードウェアプラットフォーム、Raspberry PiのARM CPUへ対応していきます。
