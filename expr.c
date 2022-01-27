@@ -3,6 +3,34 @@
 #include "decl.h"
 
 // 式をパース
+// 1つの引数を伴う関数呼び出しをパースし
+// ASTを返す
+struct ASTnode *funccall(void)
+{
+  struct ASTnode *tree;
+  int id;
+
+  // 識別子医が定義されているか調べる
+  // それから葉ノードを作る
+  if ((id = findglob(Text)) == -1)
+  {
+    fatals("宣言されていない関数です", Text);
+  }
+  // '(' を取得
+  lparen();
+
+  // 後続の式をパース
+  tree = binexpr(0);
+
+  // 関数呼び出しASTノードを作成
+  // 関数の戻り値をノードの型として保存
+  // ファンクションのシンボルidを記録
+  tree = mkastunary(A_FUNCCALL, Gsym[id].type, tree, id);
+
+  // ')' を取得
+  rparen();
+  return (tree);
+}
 
 // 主要な要素をパースして、ASTノードとして返すP
 static struct ASTnode *primary(void)
@@ -24,7 +52,18 @@ static struct ASTnode *primary(void)
     break;
 
   case T_IDENT:
-    // この識別子が宣言されているか調べる
+    // これは変数または関数呼び出し
+    // 次のトークンをスキャンして判定
+    scan(&Token);
+
+    // '(' であれば関数呼び出し
+    if (Token.token == T_LPAREN)
+      return (funccall());
+
+    // 関数呼び出しでないのでトークンを差し戻す
+    reject_token(&Token);
+
+    // 変数が宣言されているか調べる
     id = findglob(Text);
     if (id == -1)
       fatals("不明な変数", Text);

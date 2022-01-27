@@ -10,10 +10,7 @@
 // onlyrightがtrueであれば左を右へ拡張する
 int type_compatible(int *left, int *right, int onlyright)
 {
-
-  // voidはどの型とも互換性がない
-  if ((*left == P_VOID) || (*right == P_VOID))
-    return (0);
+  int leftsize, rightsize;
 
   // 同じ型であれば互換性がある
   if (*left == *right)
@@ -21,15 +18,23 @@ int type_compatible(int *left, int *right, int onlyright)
     *left = *right = 0;
     return (1);
   }
+  // それぞれの型のサイズを取得
+  leftsize = genprimsize(*left);
+  rightsize = genprimsize(*right);
 
-  // 必要であれば P_CHAR を P_INT へ拡張
-  if ((*left == P_CHAR) && (*right == P_INT))
+  // 0サイズの型はどの型とも互換性がない
+  if ((leftsize == 0) || (rightsize == 0))
+    return (0);
+
+  // 必要なら型を拡張
+  if (leftsize < rightsize)
   {
+
     *left = A_WIDEN;
     *right = 0;
     return (1);
   }
-  if ((*left == P_INT) && (*right == P_CHAR))
+  if (rightsize < leftsize)
   {
     if (onlyright)
       return (0);

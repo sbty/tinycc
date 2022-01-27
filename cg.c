@@ -2,7 +2,7 @@
 #include "data.h"
 #include "decl.h"
 
-// Code Generator
+// Code Generator for x86-64
 
 // 利用できるレジスタ一覧とその名前
 static int freereg[4];
@@ -17,6 +17,12 @@ static char *breglist[4] = {
     "%r9b",
     "%r10b",
     "%r11b"};
+
+static char *dreglist[4] = {
+    "%r8d",
+    "%r9d",
+    "%r10d",
+    "%r11d"};
 
 // すべてのレジスタを利用可能にする
 void freeall_registers(void)
@@ -54,30 +60,13 @@ static void free_register(int reg)
 void cgpreamble()
 {
   freeall_registers();
-  fputs(
-      "\t.text\n"
-      ".LC0:\n"
-      "\t.string\t\"%d\\n\"\n"
-      "printint:\n"
-      "\tpushq\t%rbp\n"
-      "\tmovq\t%rsp, %rbp\n"
-      "\tsubq\t$16, %rsp\n"
-      "\tmovl\t%edi, -4(%rbp)\n"
-      "\tmovl\t-4(%rbp), %eax\n"
-      "\tmovl\t%eax, %esi\n"
-      "\tleaq	.LC0(%rip), %rdi\n"
-      "\tmovl	$0, %eax\n"
-      "\tcall	printf@PLT\n"
-      "\tnop\n"
-      "\tleave\n"
-      "\tret\n"
-      "\n",
-      Outfile);
+  fputs("\t.text\n", Outfile);
 }
 
 // 関数のプレアンブルを出力
-void cgfuncpreamble(char *name)
+void cgfuncpreamble(int id)
 {
+  char *name = Gsym[id].name;
   fprintf(Outfile,
           "\t.text\n"
           "\t.globl\t%s\n"
@@ -89,10 +78,10 @@ void cgfuncpreamble(char *name)
 }
 
 // 関数のポストアンブルを出力
-void cgfuncpostamble()
+void cgfuncpostamble(int id)
 {
-  fputs("\tmovl $0, %eax\n"
-        "\tpopq %rbp\n"
+  cglabel(Gsym[id].endlabel);
+  fputs("\tpopq %rbp\n"
         "\tret\n",
         Outfile);
 }
@@ -117,10 +106,22 @@ int cgloadglob(int id)
   int r = alloc_register();
 
   // 初期化コードを出力:P_CHARかP_INT
-  if (Gsym[id].type == P_INT)
+  switch (Gsym[id].type)
+  {
+  case P_CHAR:
+    fprintf(Outfile, "\tmovzbq\t%s(\%%rip), %s\n", Gsym[id].name,
+            reglist[r]);
+    break;
+  case P_INT:
+    fprintf(Outfile, "\tmovzbl\t%s(\%%rip), %s\n", Gsym[id].name,
+            reglist[r]);
+    break;
+  case P_LONG:
     fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
-  else
-    fprintf(Outfile, "\tmovzbq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
+    break;
+  default:
+    fatald("cgloadglob:型が不正です", Gsym[id].type);
+  }
   return (r);
 }
 
@@ -171,26 +172,62 @@ void cgprintint(int r)
   free_register(r);
 }
 
+// 引数のレジスタから1つの引数を伴う関数を呼び出す。
+// 結果が入ったレジスタを返す
+int cgcall(int r, int id)
+{
+  // Get a new register
+  int outr = alloc_register();
+  fprintf(Outfile, "\tmovq\t%s, %%rdi\n", reglist[r]);
+  fprintf(Outfile, "\tcall\t%s\n", Gsym[id].name);
+  fprintf(Outfile, "\tmovq\t%%rax, %s\n", reglist[outr]);
+  free_register(r);
+  return (outr);
+}
+
 // レジスタの値を変数に保存
 int cgstorglob(int r, int id)
 {
-  // P_INTかP_CHARを選ぶ
-  if (Gsym[id].type == P_INT)
+  switch (Gsym[id].type)
+  {
+  case P_CHAR:
+    fprintf(Outfile, "\tmovb\t%s, %s(\%%rip)\n", breglist[r],
+            Gsym[id].name);
+    break;
+  case P_INT:
+    fprintf(Outfile, "\tmovl\t%s, %s(\%%rip)\n", dreglist[r],
+            Gsym[id].name);
+    break;
+  case P_LONG:
     fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], Gsym[id].name);
-  else
-    fprintf(Outfile, "\tmovb\t%s, %s(\%%rip)\n", breglist[r], Gsym[id].name);
-
+    break;
+  default:
+    fatald("cgloadglob:不正な型です", Gsym[id].type);
+  }
   return (r);
+}
+
+// P_XXXの並びで型のサイズが入った配列
+// 0 はサイズなし
+static int psize[] = {0, 0, 1, 4, 8};
+
+// P_XXX型の値を引数に基本型のサイズをバイトで返す
+int cgprimsize(int type)
+{
+  // 型が有効か調べる
+  if (type < P_NONE || type > P_LONG)
+    fatal("cgprimsize():不正な型です");
+  return (psize[type]);
 }
 
 // グローバルシンボルを生成
 void cgglobsym(int id)
 {
-  // P_INTかP_CHARを選ぶ
-  if (Gsym[id].type == P_INT)
-    fprintf(Outfile, "\t.comm\t%s,8,8\n", Gsym[id].name);
-  else
-    fprintf(Outfile, "\t.comm\t%s,1,1\n", Gsym[id].name);
+  int typesize;
+  // 型のサイズを取得
+  typesize = cgprimsize(Gsym[id].type);
+
+  fprintf(Outfile, "\t.comm\t%s,%d,%d\n", Gsym[id].name, typesize, typesize);
 }
 
 // 比較命令のリスト
@@ -249,4 +286,25 @@ int cgwiden(int r, int oldtype, int newtype)
 {
   // なにもしない
   return (r);
+}
+
+// 関数から値を返すコードを生成
+void cgreturn(int reg, int id)
+{
+  // 関数の型に応じてコードを生成
+  switch (Gsym[id].type)
+  {
+  case P_CHAR:
+    fprintf(Outfile, "\tmovzbl\t%s, %%eax\n", breglist[reg]);
+    break;
+  case P_INT:
+    fprintf(Outfile, "\tmovl\t%s, %%eax\n", dreglist[reg]);
+    break;
+  case P_LONG:
+    fprintf(Outfile, "\tmovq\t%s, %%rax\n", reglist[reg]);
+    break;
+  default:
+    fatald("cgreturn:関数の型が不正です", Gsym[id].type);
+  }
+  cgjump(Gsym[id].endlabel);
 }

@@ -11,32 +11,38 @@
 enum
 {
   T_EOF,
-  T_PLUS, //
+  // オペレータ
+  T_PLUS,
   T_MINUS,
-  T_STAR, //
+  T_STAR,
   T_SLASH,
-  T_EQ, //
+  T_EQ,
   T_NE,
-  T_LT, //
+  T_LT,
   T_GT,
   T_LE,
   T_GE,
-  T_INTLIT, //
+  // 型キーワード
+  T_VOID,
+  T_CHAR,
+  T_INT,
+  T_LONG,
+  //構造上のトークン
+  T_INTLIT,
   T_SEMI,
   T_ASSIGN,
   T_IDENT,
-  T_LBRACE, //
+  T_LBRACE,
   T_RBRACE,
   T_LPAREN,
   T_RPAREN,
-  T_PRINT, // キーワード
-  T_INT,
+  // 他キーワード
+  T_PRINT,
   T_IF,
   T_ELSE,
   T_WHILE,
   T_FOR,
-  T_VOID,
-  T_CHAR
+  T_RETURN
 };
 
 struct token
@@ -67,7 +73,9 @@ enum
   A_IF, //
   A_WHILE,
   A_FUNCTION,
-  A_WIDEN
+  A_WIDEN,
+  A_RETURN,
+  A_FUNCCALL
 };
 
 // primitive types
@@ -76,7 +84,8 @@ enum
   P_NONE,
   P_VOID,
   P_CHAR,
-  P_INT
+  P_INT,
+  P_LONG
 };
 
 // AST構造体
@@ -106,7 +115,8 @@ enum
 // シンボルテーブル構造体
 struct symtable
 {
-  char *name; // シンボル名
-  int type;   // シンボルのprimitive type
-  int stype;  // シンボルの構造上の型
+  char *name;   // シンボル名
+  int type;     // シンボルのprimitive type
+  int stype;    // シンボルの構造上の型
+  int endlabel; // S_FUNCTIONのため、エンドラベル
 };

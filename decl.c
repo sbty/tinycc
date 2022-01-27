@@ -12,6 +12,8 @@ int parse_type(int t)
     return (P_CHAR);
   if (t == T_INT)
     return (P_INT);
+  if (t == T_LONG)
+    return (P_LONG);
   if (t == T_VOID)
     return (P_VOID);
   fatald("不正な型, token", t);
@@ -31,7 +33,7 @@ void var_declaration(void)
   // Textには識別子の名前が入っている
   // 既知の識別子として登録
   // アセンブリでその場所を生成
-  id = addglob(Text, type, S_VARIABLE);
+  id = addglob(Text, type, S_VARIABLE, 0);
   genglobsym(id);
 
   // 後続のセミコロンを取得
@@ -44,21 +46,36 @@ void var_declaration(void)
 // 単純化された関数の宣言をパース
 struct ASTnode *function_declaration(void)
 {
-  struct ASTnode *tree;
-  int nameslot;
+  struct ASTnode *tree, *finalstmt;
+  int nameslot, type, endlabel;
 
-  // 'void'、識別子、'(' ')'を探す
-  // 今はまだそれらに対して何もしない
-  match(T_VOID, "void");
+  // 変数の型を取得し、その後識別子を取得
+  type = parse_type(Token.token);
+  scan(&Token);
   ident();
-  nameslot = addglob(Text, P_VOID, S_FUNCTION);
+
+  // エンドラベルのラベルidを取得、
+  // 関数をシンボルテーブルに追加、
+  // グローバルのFuncionidに関数のシンボルidをセット
+  endlabel = genlabel();
+  nameslot = addglob(Text, type, S_FUNCTION, endlabel);
+  Functionid = nameslot;
+
   lparen();
   rparen();
 
   // 合成ステートメントのASTツリーを取得
   tree = compound_statement();
 
-  // 関数の名前枠と合成ステートメントのサブツリーを持つ
-  // A_FUNCTIONノードを返す
-  return (mkastunary(A_FUNCTION, P_VOID, tree, nameslot));
+  // 関数の型がP_VOIDでなければ合成ステートメントの
+  // 最後のAST操作がreturn文であったか確認する
+  if (type != P_VOID)
+  {
+    finalstmt = (tree->op == A_GLUE) ? tree->right : tree;
+    if (finalstmt == NULL || finalstmt->op != A_RETURN)
+      fatal("非void型の関数が値を返しません");
+  }
+  // 関数の名前枠と合成ステートメントサブツリーを
+  // 持っているFUNCTIONノードを返す
+  return (mkastunary(A_FUNCTION, type, tree, nameslot));
 }

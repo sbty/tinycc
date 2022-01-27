@@ -43,6 +43,9 @@ void main(int argc, char *argv[])
         exit(1);
     }
 
+    // とりあえずvoid printint()を確実に定義する
+    addglob("printint", P_CHAR, S_FUNCTION, 0);
+
     scan(&Token);  // 入力ファイルの最初のトークンを取得
     genpreamble(); // プレアンブルを出力
     while (1)

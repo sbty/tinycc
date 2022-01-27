@@ -5,7 +5,7 @@
 // 汎用コードジェネレータ
 
 // 新しいラベル番号を生成して返す
-static int label(void)
+int genlabel(void)
 {
   static int id = 1;
   return (id++);
@@ -19,9 +19,9 @@ static int genIF(struct ASTnode *n)
   // 2つのラベルを生成する。1つはfalse合成ステートメント、
   // もう1つはif文全体の終わりへのラベル。
   // else句がなければLfalseが終了ラベルとなる
-  Lfalse = label();
+  Lfalse = genlabel();
   if (n->right)
-    Lend = label();
+    Lend = genlabel();
 
   // falseラベルへジャンプするコードが後ろにつく、
   // 条件式を生成する。
@@ -60,8 +60,8 @@ static int genWHILE(struct ASTnode *n)
 
   // 開始と終了ラベルを生成
   // スタートラベルを出力
-  Lstart = label();
-  Lend = label();
+  Lstart = genlabel();
+  Lend = genlabel();
   cglabel(Lstart);
 
   // 後ろに終了ラベルへのジャンプ文がつく
@@ -104,9 +104,9 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     return (NOREG);
   case A_FUNCTION:
     // コードより先に関数のプレアンブルを生成
-    cgfuncpreamble(Gsym[n->v.id].name);
+    cgfuncpreamble(n->v.id);
     genAST(n->left, NOREG, n->op);
-    cgfuncpostamble();
+    cgfuncpostamble(n->v.id);
     return (NOREG);
   }
 
@@ -159,7 +159,11 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
   case A_WIDEN:
     // 子の型を親の型へ拡張
     return (cgwiden(leftreg, n->left->type, n->type));
-
+  case A_RETURN:
+    cgreturn(leftreg, Functionid);
+    return (NOREG);
+  case A_FUNCCALL:
+    return (cgcall(leftreg, n->v.id));
   default:
     fatald("不明なAST操作です", n->op);
   }
@@ -182,4 +186,9 @@ void genprintint(int reg)
 void genglobsym(int id)
 {
   cgglobsym(id);
+}
+
+int genprimsize(int type)
+{
+  return (cgprimsize(type));
 }

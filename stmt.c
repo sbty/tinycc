@@ -59,7 +59,14 @@ static struct ASTnode *assignment_statement(void)
   // 識別子があるか調べる
   ident();
 
-  // 定義されていたら葉ノードを作る
+  // ここでは変数か関数呼び出しかわからない
+  // 次のトークンが'('ならば関数呼び出し
+  if (Token.token == T_LPAREN)
+    return (funccall());
+
+  // 関数呼び出しでなければ
+  // 識別子が宣言されているか調べる
+  // そして葉ノードを作成
   if ((id = findglob(Text)) == -1)
   {
     fatals("宣言されていない変数", Text);
@@ -199,6 +206,43 @@ static struct ASTnode *for_statement(void)
   return (mkastnode(A_GLUE, P_NONE, preopAST, NULL, tree, 0));
 }
 
+// return_statement: 'return' '(' expression ')'  ;
+//
+// return文をパースしそのASTを返す
+static struct ASTnode *return_statement(void)
+{
+  struct ASTnode *tree;
+  int returntype, functype;
+
+  // 関数の型がP_VOIDであれば値は返せない
+  if (Gsym[Functionid].type == P_VOID)
+    fatal("void関数は値を返せません");
+
+  // 'return'と'('があるか確認
+  match(T_RETURN, "return");
+  lparen();
+
+  // 後続の式をパース
+  tree = binexpr(0);
+
+  // 関数の型と互換性があるか確認
+  returntype = tree->type;
+  functype = Gsym[Functionid].type;
+  if (!type_compatible(&returntype, &functype, 1))
+    fatal("型に互換性がありません");
+
+  // 必要なら左を拡張
+  if (returntype)
+    tree = mkastunary(returntype, functype, tree, 0);
+
+  // A_RETURNノードに追加
+  tree = mkastunary(A_RETURN, P_NONE, tree, 0);
+
+  // ')' を取得
+  rparen();
+  return (tree);
+}
+
 // single statementをパースして
 // そのASTを返す
 static struct ASTnode *single_statement(void)
@@ -209,6 +253,7 @@ static struct ASTnode *single_statement(void)
     return (print_statement());
   case T_CHAR:
   case T_INT:
+  case T_LONG:
     var_declaration();
     return (NULL); // No AST generated here
   case T_IDENT:
@@ -219,6 +264,8 @@ static struct ASTnode *single_statement(void)
     return (while_statement());
   case T_FOR:
     return (for_statement());
+  case T_RETURN:
+    return (return_statement());
   default:
     fatald("構文エラー token", Token.token);
   }
@@ -238,7 +285,8 @@ struct ASTnode *compound_statement(void)
     // single statementをパース
     tree = single_statement();
     // 後ろにセミコロンがつかないといけないステートメントか調べる
-    if (tree != NULL && (tree->op == A_PRINT || tree->op == A_ASSIGN))
+    if (tree != NULL && (tree->op == A_PRINT || tree->op == A_ASSIGN ||
+                         tree->op == A_RETURN || tree->op == A_FUNCCALL))
       semi();
 
     // それぞれのツリーに対し、左が空であれば左に保存し、
