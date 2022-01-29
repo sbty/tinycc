@@ -88,3 +88,71 @@ static void set_var_offset(int id) {
   fprintf(Outfile, "\tldr\tr3, .L2+%d\n", offset);
 }
 ```
+
+### intリテラルの読み込み
+
+読み込み命令時における整数リテラルのサイズは11ビットに制限され、符号付きの値だと思います。したがって、大きな整数リテラルを単一の命令に入れることはできません。解決案は整数値を変数などのメモリに保存することです。そうすることでそれまで使ってきた整数値のリストを維持します。ポストアンブルで`.L3`ラベルの後ろにこれらを出力します。そして変数と同様にこのリストを見て`.L3`ラベルから任意の変数へのオフセットを決定します。
+
+```c
+// メモリに大きな整数リテラル値を保存する必要がある。
+// ポストアンブルで出力される可能性のあるリストを保持する。
+#define MAXINTS 1024
+int Intlist[MAXINTS];
+static int Intslot = 0;
+
+// 大きな整数リテラルの.L3ラベルからのオフセットを決める。
+// 整数がリストになければ追加する。
+static void set_int_offset(int val) {
+  int offset = -1;
+
+  // すでにあるか確認
+  for (int i = 0; i < Intslot; i++) {
+    if (Intlist[i] == val) {
+      offset = 4 * i;
+      break;
+    }
+  }
+
+  // リストになければ追加
+  if (offset == -1) {
+    offset = 4 * Intslot;
+    if (Intslot == MAXINTS)
+      fatal("set_int_offset()でintスロットがありません");
+    Intlist[Intslot++] = val;
+  }
+  // このオフセットでr3を読み込む
+  fprintf(Outfile, "\tldr\tr3, .L3+%d\n", offset);
+}
+```
+
+### 関数プレアンブル
+
+関数プレアンブルを示しますが、各命令がしていることを完全に理解していません。以下は`int main(int x)`の場合です。
+
+```asseembly
+  .text
+  .globl        main
+  .type         main, %function
+  main:         push  {fp, lr}          # フレームとスタックポインタを保存
+                add   fp, sp, #4        # スタックポインタにsp+4を加算
+                sub   sp, sp, #8        # スタックポインタを8下げる
+                str   r0, [fp, #-8]     # 引数をローカル変数として保存するか？
+```
+
+以下は単一の戻り値のための関数ポストアンブルです。
+
+```assembly
+                sub   sp, fp, #4        # ???
+                pop   {fp, pc}          # フレームとスタックポインタを取り出す。
+```
+
+### 0か1を返すことの比較
+
+x86-64では`sete`のような比較が真であるかに基づいて0か1をレジスタにセットする命令が有ります。ですがその場合、残りのレジスタを`movzbq`を使って0で埋める必要が有ります。ARMでは別々に2つの命令を実行し、条件が真か偽かでレジスタに値をセットします。
+
+```assembly
+                moveq r4, #1            # 値が等しければr4に1をセット
+                movne r4, #0            # 値が等しくなければr4に0をセット
+```
+
+##
