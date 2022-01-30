@@ -155,4 +155,88 @@ x86-64では`sete`のような比較が真であるかに基づいて0か1をレ
                 movne r4, #0            # 値が等しくなければr4に0をセット
 ```
 
-##
+## x86-64とARMアセンブリ出力の類似点を比較
+
+大きな違いは出尽くしたと思います。そこで以下はcgXXX操作、その操作のための特定の型、それらを実行するためのx86-64とARMの命令の比較になります。
+
+| 操作(型)             | x86-64                | ARM            |
+| -------------------- | --------------------- | -------------- |
+| cgloadint()          | movq $12, %r8         | mov r4, #13    |
+| cgloadglob(char)     | movzbq foo(%rip), %r8 | ldr r3, .L2+#4 |
+|                      |                       | ldr r4, .[r3]  |
+| cgloadglob(int)      | movzbl foo(%rip), %r8 | ldr r3, .L2+#4 |
+|                      |                       | ldr r4, .[r3]  |
+| cgloadglob(long)     | movq foo(%rip), %r8   | ldr r3, .L2+#4 |
+|                      |                       | ldr r4, .[r3]  |
+| int cgadd()          | addq %r8,%r9          | add r4, r4, r5 |
+| int cgsub()          | subq %r8,%r9          | sub r4, r4, r5 |
+| int cgmul()          | imulq %r8,%r9         | mul r4, r4, r5 |
+| int cgdiv()          | movqq %r8,%rax        | mov r0, r4     |
+|                      | cqo                   | mov r1, r5     |
+|                      | idivq %r8             | bl__aeabi_idiv |
+|                      | movq %rax, %r8        | mov r4, r0     |
+| cgprintint()         | movq %r8, %rdi        | mov r0, r4     |
+|                      | call printint         | bl printint    |
+|                      |                       | nop            |
+| cgcall()             | movq %r8, %rdi        | mov r0, r4     |
+|                      | call foo              | bl foo         |
+|                      | movq %rax, %r8        | mov r4, r0     |
+| cgstorglob(char)     | movb %r8, foo(%rip)   | ldr r3, .L2+#4 |
+|                      |                       | strb r4,[r3]   |
+| cgstorglob(int)      | movl %r8, foo(%rip)   | ldr r3, .L2+#4 |
+|                      |                       | str r4,[r3]    |
+| cgstorglob(long)     | movq %r8, foo(%rip)   | ldr r3, .L2+#4 |
+|                      |                       | str r4,[r3]    |
+| cgcompare_and_set()  | compq %r8, %r9        | cmp r4,r5      |
+|                      | sete %r8              | moveq r4, #1   |
+|                      | movzbq %r8, %r8       | movne r4, #1   |
+| cgcompare_and_jump() | compq %r8, %r9        | cmp r4,r5      |
+|                      | je L2                 | beq L2         |
+| cgreturn(char)       | movzbl %r8, %eax      | mov r0, r4     |
+|                      | jmp L2                | b L2           |
+| cgreturn(int)        | movl %r8, %eax        | mov r0, r4     |
+|                      | jmp L2                | b L2           |
+| cgreturn(long)       | movq %r8, %rax        | mov r0, r4     |
+|                      | jmp L2                | b L2           |
+
+## ARMコード生成のテスト
+
+Rasberry Pi 3か4に今回までのコードを持っていけば次のことができるはずです。
+
+```bash
+$ make armtest
+cc -o comp1arm -g -Wall cg_arm.c decl.c expr.c gen.c main.c misc.c
+      scan.c stmt.c sym.c tree.c types.c
+cp comp1arm comp1
+(cd tests; chmod +x runtests; ./runtests)
+input01: OK
+input02: OK
+input03: OK
+input04: OK
+input05: OK
+input06: OK
+input07: OK
+input08: OK
+input09: OK
+input10: OK
+input11: OK
+input12: OK
+input13: OK
+input14: OK
+
+$ make armtest14
+./comp1 tests/input14
+cc -o out out.s lib/printint.c
+./out
+10
+20
+30
+```
+
+## まとめ
+
+ARMバージョンのコードジェネレータ`cg_arm.c`ですべてのテスト入力を正しくコンパイルするには少し頭を悩ませました。アーキテクチャと命令セットに詳しくなかっただけで、殆どは単純でした。
+
+コンパイラをレジスタが3つか4つ、あるいは2つか同程度のデータサイズとスタック(とスタックフレーム)をもつプラットフォームに移植するのは比較的簡単であるはずです。今後は`cg.c`と`cg_arm.c`での機能の同期を維持していくつもりです。
+
+次回は`char`ポインタと、'*'、'&'の単項演算子を追加していきます。
