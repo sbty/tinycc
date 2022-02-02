@@ -1,3 +1,4 @@
+
 #include "defs.h"
 #include "data.h"
 #include "decl.h"
@@ -43,6 +44,7 @@ static int alloc_register(void)
     }
   }
   fatal("利用可能なレジスタがありません");
+  return (NOREG);
 }
 
 // 利用可能なレジスタのリストへ(利用中の)レジスタを返す
@@ -61,6 +63,10 @@ void cgpreamble()
 {
   freeall_registers();
   fputs("\t.text\n", Outfile);
+}
+
+void cgpostamble()
+{
 }
 
 // 関数のプレアンブルを出力
@@ -176,7 +182,7 @@ void cgprintint(int r)
 // 結果が入ったレジスタを返す
 int cgcall(int r, int id)
 {
-  // Get a new register
+  // 新規にレジスタを取得
   int outr = alloc_register();
   fprintf(Outfile, "\tmovq\t%s, %%rdi\n", reglist[r]);
   fprintf(Outfile, "\tcall\t%s\n", Gsym[id].name);

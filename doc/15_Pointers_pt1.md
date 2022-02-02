@@ -89,3 +89,124 @@ int  d; int  *e;
 ```
 
 `decl.c`にはすでに型キーワードを型に変換する`parse_type()`関数があります。これを拡張して続くトークンをスキャンし、次のトークンが'*'だった場合に型を変換します。
+
+```c
+// 現在のトークンをパースして基本型のenum値を返す。
+// 次のトークンをスキャンする。
+int parse_type(void) {
+  int type;
+  switch (Token.token) {
+    case T_VOID: type = P_VOID; break;
+    case T_CHAR: type = P_CHAR; break;
+    case T_INT:  type = P_INT;  break;
+    case T_LONG: type = P_LONG; break;
+    default:
+      fatald("トークンの型が不正です。", Token.token);
+  }
+
+  // 1つ以上先の'*'トークンをスキャンし、今見ているトークンのポインタ型を決める。
+  while (1) {
+    scan(&Token);
+    if (Token.token != T_STAR) break;
+    type = pointer_to(type);
+  }
+
+  // スキャンした次のトークンはそのままにしておく。
+  return (type);
+}
+
+これは将来的に次のことが可能になります。
+
+```c
+char *****fred;
+```
+
+これは`pointer_to()`がP_CHARPTRをP_CHARPTRPTRに(いまはまだ)変換できないので失敗します。ですが`parse_type`のコードはすでに対応済みです。
+
+`var_declaration()`のコードはかなりうまくポインタ変数の宣言をパースしています。
+
+```c
+// 変数宣言のパース
+void var_declaration(void) {
+  int id, type;
+
+  // 変数の型を取得する。
+  // これもident()でスキャンする。
+  type = parse_type();
+  ident();
+  ...
+}
+```
+
+### プレフィクスオペレータ '*'と'&'
+
+一旦宣言から離れて、式よりも前にくる'*'と'&'のパースを見てみましょう。BNF構文は次のようになります。
+
+```c
+ prefix_expression: primary
+     | '*' prefix_expression
+     | '&' prefix_expression
+     ;
+```
+
+技術上は次の記述は許容されます。
+
+```c
+   x= ***y;
+   a= &&&b;
+```
+
+2つのオペレータの無理な利用を防ぐため、意味チェックを追加しました。以下がコードです。
+
+```c
+// プレフィクス式をパースし、それを表すサブツリーを返す
+struct ASTnode *prefix(void) {
+  struct ASTnode *tree;
+  switch (Token.token) {
+    case T_AMPER:
+      // 次のトークンを取得しプレフィクス式として再帰的にパースする
+      scan(&Token);
+      tree = prefix();
+
+      // 識別子であるか確認
+      if (tree->op != A_IDENT)
+        fatal("& オペレータの後ろに識別子がありません");
+
+      // オペレータをA_ADDRに、型を元の型を指すポインタに変換します。
+      tree->op = A_ADDR; tree->type = pointer_to(tree->type);
+      break;
+    case T_STAR:
+      // 次のトークンを取得しプレフィクスの式として再帰的にパースする
+      scan(&Token); tree = prefix();
+
+      // とりあえず間接演算子か識別子か確認する
+      if (tree->op != A_IDENT && tree->op != A_DEREF)
+        fatal("* オペレータの後ろに識別子も*もありません。");
+
+      // A_DEREF操作をツリーの先頭につける
+      tree = mkastunary(A_DEREF, value_at(tree->type), tree, 0);
+      break;
+    default:
+      tree = primary();
+  }
+  return (tree);
+}
+```
+
+相変わらず再帰降下をやっていますが、入力ミスを防ぐためエラーチェックもしています。現時点では`value_at()`の制限により'*'オペレータを続けて並べることはできませんが、今後`value_at()`を変更したときに見直したりprefix()を変更する必要はないでしょう。
+
+'prefix()'は'*'か'&'がないときに'primary()'を呼び出しています。これにより既存の'binexpr()'のコードを変更することができます。
+
+```c
+struct ASTnode *binexpr(int ptp) {
+  struct ASTnode *left, *right;
+  int lefttype, righttype;
+  int tokentype;
+
+  // 左のツリーを取得。
+  // 同時に次のトークンを取得する。
+  // 以前はprimary()を呼び出していた。
+  left = prefix();
+  ...
+}
+```

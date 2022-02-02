@@ -124,9 +124,17 @@ static int keyword(char *s)
         if (!strcmp(s, "int"))
             return (T_INT);
         break;
+    case 'l':
+        if (!strcmp(s, "long"))
+            return (T_LONG);
+        break;
     case 'p':
         if (!strcmp(s, "print"))
             return (T_PRINT);
+        break;
+    case 'r':
+        if (!strcmp(s, "return"))
+            return (T_RETURN);
         break;
     case 'w':
         if (!strcmp(s, "while"))
@@ -140,15 +148,33 @@ static int keyword(char *s)
     return (0);
 }
 
+// 拒否(排出)するトークンへのポインタ
+static struct token *Rejtoken = NULL;
+
+// スキャンしたばかりのトークンを拒否
+void reject_token(struct token *t)
+{
+    if (Rejtoken != NULL)
+        fatal("トークンを2回拒否できません");
+    Rejtoken = t;
+}
+
 // スキャンを行い入力ファイルから見つかった次のトークンを返す。
 // トークンが有効であれば１を、トークンが残っていなければ0を返す。
 int scan(struct token *t)
 {
     int c, tokentype;
 
+    // 拒否されたトークンがあればそれを返す
+    if (Rejtoken != NULL)
+    {
+        t = Rejtoken;
+        Rejtoken = NULL;
+        return (1);
+    }
+
     //空白を飛ばす
     c = skip();
-    //    printf("%d ", c);
 
     //入力に応じてトークンを決める
     switch (c)
@@ -242,7 +268,7 @@ int scan(struct token *t)
             scanident(c, Text, TEXTLEN);
 
             // 解釈できるキーワードであればそのトークンを返す
-            if (tokentype = keyword(Text))
+            if ((tokentype = keyword(Text)) != 0)
             {
                 t->token = tokentype;
                 break;

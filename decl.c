@@ -17,6 +17,7 @@ int parse_type(int t)
   if (t == T_VOID)
     return (P_VOID);
   fatald("不正な型, token", t);
+  return (0);
 }
 
 // variable_declaration: 'int' identifier ';'  ;

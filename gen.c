@@ -167,11 +167,17 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
   default:
     fatald("不明なAST操作です", n->op);
   }
+  return (NOREG);
 }
 
 void genpreamble()
 {
   cgpreamble();
+}
+
+void genpostamble()
+{
+  cgpostamble();
 }
 
 void genfreeregs()

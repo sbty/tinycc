@@ -10,6 +10,7 @@ static void init()
 {
     Line = 1;
     Putback = '\n';
+    Globs = 0;
 }
 
 // 引数がおかしいときに使い方を表示
@@ -21,7 +22,7 @@ static void usage(char *prog)
 
 // メイン。引数を調べて、なければ使い方を表示
 // 入力ファイルを開いてscanfileを呼びtokenを見ていく。
-void main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     struct ASTnode *tree;
 
@@ -32,7 +33,7 @@ void main(int argc, char *argv[])
 
     if ((Infile = fopen(argv[1], "r")) == NULL)
     {
-        fprintf(stderr, "%s を開けません\n", argv[1], strerror(errno));
+        fprintf(stderr, "%s を開けません:%s\n", argv[1], strerror(errno));
         exit(1);
     }
 
@@ -55,6 +56,7 @@ void main(int argc, char *argv[])
         if (Token.token == T_EOF)
             break; // 入力されたステートメントをパース
     }
+    genpostamble();
     fclose(Outfile);
-    exit(0);
+    return (0);
 }

@@ -25,7 +25,6 @@ static struct ASTnode *print_statement(void)
 {
   struct ASTnode *tree;
   int lefttype, righttype;
-  int reg;
 
   // printを最初のトークンとしてチェック
   match(T_PRINT, "print");
@@ -83,7 +82,7 @@ static struct ASTnode *assignment_statement(void)
   lefttype = left->type;
   righttype = right->type;
   if (!type_compatible(&lefttype, &righttype, 1))
-    fatal("Incompatible types");
+    fatal("型に互換性がありません。");
 
   // 要求があれば左を拡張
   if (lefttype)
