@@ -210,3 +210,105 @@ struct ASTnode *binexpr(int ptp) {
   ...
 }
 ```
+
+## 追加するASTノード型
+
+上記の`prefix()`の箇所で、2つのASTノード型を追加しました(`defs.h`で宣言)。
+
+- A_DEREF: 子ノードでのポインタの間接参照
+- A_ADDR: ノードでの識別子のアドレスを取得
+
+A_ADDRノードは親ノードでは無い点に注意してください。`&fred`の場合、`prefix()`のコードは"fred"ノードのA_IDENTをA_ADDRノード型で置き換えます。
+
+## アセンブリコードの生成
+
+`gen.c`の汎用コード生成では`genAST()`に少し追加しただけです。
+
+```c
+    case A_ADDR:
+      return (cgaddress(n->v.id));
+    case A_DEREF:
+      return (cgderef(leftreg, n->left->type));
+```
+
+### x86-64での実装
+
+他のコンパイラで生成されるアセンブリコードを確認しながら、以下のアセンブリ出力を実現しました。正確ではないかもしれませんが。
+
+```c
+// グローバル識別子のアドレスを変数に読み込ませるコードを生成する。
+// レジスタ番号を返す。
+int cgaddress(int id) {
+  int r = alloc_register();
+
+  fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", Gsym[id].name, reglist[r]);
+  return (r);
+}
+
+// ポインタが指す値を取得する間接参照。同じレジスタを指す。
+int cgderef(int r, int type) {
+  switch (type) {
+    case P_CHARPTR:
+      fprintf(Outfile, "\tmovzbq\t(%s), %s\n", reglist[r], reglist[r]);
+      break;
+    case P_INTPTR:
+    case P_LONGPTR:
+      fprintf(Outfile, "\tmovq\t(%s), %s\n", reglist[r], reglist[r]);
+      break;
+  }
+  return (r);
+}
+```
+
+`leaq`命令は名前のついた識別子のアドレスを読み込みます。セクション関数では、`(%r8)`構文が`%r8`レジスタが指す先の値を読み込みます。
+
+## 追加した機能のテスト
+
+新しいファイル`tests/input15.c`とそれをコンパイルした結果です。
+
+```c
+int main() {
+  char  a; char *b; char  c;
+  int   d; int  *e; int   f;
+
+  a= 18; printint(a);
+  b= &a; c= *b; printint(c);
+
+  d= 12; printint(d);
+  e= &d; f= *e; printint(f);
+  return(0);
+}
+```
+
+```bash
+$ make test15
+cc -o comp1 -g -Wall cg.c decl.c expr.c gen.c main.c misc.c
+   scan.c stmt.c sym.c tree.c types.c
+./comp1 tests/input15.c
+cc -o out out.s lib/printint.c
+./out
+18
+18
+12
+12
+```
+
+テストファイルに`.c`をつけることにし、本物のCプログラムとなりました。`tests/mktest`スクリプトにも変更を加え、テストファイルをコンパイルするのに本物のコンパイラを使い、正しい結果を生成するようにしました。
+
+## まとめ
+
+ポインタ実装がはじまりました。また完全に正しいわけではありません。例えば次のコード
+
+```c
+int main() {
+  int x; int y;
+  int *iptr;
+  x= 10; y= 20;
+  iptr= &x + 1;
+  printint( *iptr);
+}
+```
+
+これは`&x+1`は`x`の1つ先の`int`、`y`を指すので20が出力されるはずです。`x`の8バイト先です。ですが我々のコンパイラは`x`のアドレスに1を足しており、これは誤りです。どうにかこれを修正する必要が有ります。
+
+次回はこの問題の解決に取り組みます。
