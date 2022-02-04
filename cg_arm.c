@@ -170,7 +170,16 @@ int cgloadglob(int id)
 
   // 変数へのオフセットを取得
   set_var_offset(id);
-  fprintf(Outfile, "\tldr\t%s, [r3]\n", reglist[r]);
+
+  switch (Gsym[id].type)
+  {
+  case P_CHAR:
+    fprintf(Outfile, "\tldrb\t%s, [r3]\n", reglist[r]);
+    break;
+  default:
+    fprintf(Outfile, "\tldr\t%s, [r3]\n", reglist[r]);
+    break;
+  }
   return (r);
 }
 
@@ -250,6 +259,9 @@ int cgstorglob(int r, int id)
     break;
   case P_INT:
   case P_LONG:
+  case P_CHARPTR:
+  case P_INTPTR:
+  case P_LONGPTR:
     fprintf(Outfile, "\tstr\t%s, [r3]\n", reglist[r]);
     break;
   default:
@@ -260,14 +272,14 @@ int cgstorglob(int r, int id)
 
 // 型サイズの配列がP_XXXの形で並んでいる。
 // 0 はサイズなし。
-static int psize[] = {0, 0, 1, 4, 4};
+static int psize[] = {0, 0, 1, 4, 4, 4, 4, 4};
 
 // P_XXXの方の値を引数に、基本型のサイズをバイトで返す。
 int cgprimsize(int type)
 {
-  // 方が有効か調べる
-  if (type < P_NONE || type > P_LONG)
-    fatal("Bad type in cgprimsize()型が不正です");
+  // 型が有効か調べる
+  if (type < P_NONE || type > P_LONGPTR)
+    fatal("cgprimsize()型が不正です");
   return (psize[type]);
 }
 
@@ -297,7 +309,7 @@ int cgcompare_and_set(int ASTop, int r1, int r2)
 
   // AST操作の範囲をチェック
   if (ASTop < A_EQ || ASTop > A_GE)
-    fatal("Bad ASTop in cgcompare_and_set()不正なAST操作です");
+    fatal("cgcompare_and_set()不正なAST操作です");
 
   fprintf(Outfile, "\tcmp\t%s, %s\n", reglist[r1], reglist[r2]);
   fprintf(Outfile, "\t%s\t%s, #1\n", cmplist[ASTop - A_EQ], reglist[r2]);
@@ -329,7 +341,7 @@ int cgcompare_and_jump(int ASTop, int r1, int r2, int label)
 
   // AST操作の範囲をチェック
   if (ASTop < A_EQ || ASTop > A_GE)
-    fatal("Bad ASTop in cgcompare_and_set()不正なAST操作です");
+    fatal("cgcompare_and_set()不正なAST操作です");
 
   fprintf(Outfile, "\tcmp\t%s, %s\n", reglist[r1], reglist[r2]);
   fprintf(Outfile, "\t%s\tL%d\n", brlist[ASTop - A_EQ], label);
@@ -351,4 +363,36 @@ void cgreturn(int reg, int id)
 {
   fprintf(Outfile, "\tmov\tr0, %s\n", reglist[reg]);
   cgjump(Gsym[id].endlabel);
+}
+
+// Generate code to load the address of a global
+// identifier into a variable. Return a new register
+int cgaddress(int id)
+{
+  // Get a new register
+  int r = alloc_register();
+
+  // Get the offset to the variable
+  set_var_offset(id);
+  fprintf(Outfile, "\tmov\t%s, r3\n", reglist[r]);
+  return (r);
+}
+
+// Dereference a pointer to get the value it
+// pointing at into the same register
+int cgderef(int r, int type)
+{
+  switch (type)
+  {
+  case P_CHARPTR:
+    fprintf(Outfile, "\tldrb\t%s, [%s]\n", reglist[r], reglist[r]);
+    break;
+  case P_INTPTR:
+    fprintf(Outfile, "\tldr\t%s, [%s]\n", reglist[r], reglist[r]);
+    break;
+  case P_LONGPTR:
+    fprintf(Outfile, "\tldr\t%s, [%s]\n", reglist[r], reglist[r]);
+    break;
+  }
+  return (r);
 }

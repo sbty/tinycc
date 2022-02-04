@@ -253,6 +253,18 @@ int scan(struct token *t)
         }
         break;
 
+    case '&':
+        if ((c = next()) == '&')
+        {
+            t->token = T_LOGAND;
+        }
+        else
+        {
+            putback(c);
+            t->token = T_AMPER;
+        }
+        break;
+
     default:
 
         // 整数であればリテラルの整数値をスキャン

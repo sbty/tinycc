@@ -6,18 +6,39 @@
 
 // 今見ているトークンをパースし
 // その基本的な型をenumの値で返す
-int parse_type(int t)
+int parse_type(void)
 {
-  if (t == T_CHAR)
-    return (P_CHAR);
-  if (t == T_INT)
-    return (P_INT);
-  if (t == T_LONG)
-    return (P_LONG);
-  if (t == T_VOID)
-    return (P_VOID);
-  fatald("不正な型, token", t);
-  return (0);
+  int type;
+  switch (Token.token)
+  {
+  case T_VOID:
+    type = P_VOID;
+    break;
+  case T_CHAR:
+    type = P_CHAR;
+    break;
+  case T_INT:
+    type = P_INT;
+    break;
+  case T_LONG:
+    type = P_LONG;
+    break;
+  default:
+    fatald("不正な型, token", Token.token);
+  }
+
+  // 1つ以上先にある'*'トークンをスキャンし
+  // 対応するポインタの型を決める
+  while (1)
+  {
+    scan(&Token);
+    if (Token.token != T_STAR)
+      break;
+    type = pointer_to(type);
+  }
+
+  // スキャンした次のトークンはそのままにしておく
+  return (type);
 }
 
 // variable_declaration: 'int' identifier ';'  ;
@@ -27,8 +48,7 @@ void var_declaration(void)
   int id, type;
 
   // 変数の型を取得し、その後識別子を取得する
-  type = parse_type(Token.token);
-  scan(&Token);
+  type = parse_type();
   ident();
 
   // Textには識別子の名前が入っている
@@ -51,8 +71,7 @@ struct ASTnode *function_declaration(void)
   int nameslot, type, endlabel;
 
   // 変数の型を取得し、その後識別子を取得
-  type = parse_type(Token.token);
-  scan(&Token);
+  type = parse_type();
   ident();
 
   // エンドラベルのラベルidを取得、
@@ -72,6 +91,12 @@ struct ASTnode *function_declaration(void)
   // 最後のAST操作がreturn文であったか確認する
   if (type != P_VOID)
   {
+    // 関数内にステートメントがなければエラー
+    if (tree == NULL)
+      fatal("非void型関数内にステートメントがありません");
+
+    // 合成ステートメントの最後のAST操作がreturn文
+    // であったか確認する。
     finalstmt = (tree->op == A_GLUE) ? tree->right : tree;
     if (finalstmt == NULL || finalstmt->op != A_RETURN)
       fatal("非void型の関数が値を返しません");

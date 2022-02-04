@@ -115,7 +115,7 @@ int cgloadglob(int id)
   switch (Gsym[id].type)
   {
   case P_CHAR:
-    fprintf(Outfile, "\tmovzbq\t%s(\%%rip), %s\n", Gsym[id].name,
+    fprintf(Outfile, "\tmovzbq\t%s(%%rip), %s\n", Gsym[id].name,
             reglist[r]);
     break;
   case P_INT:
@@ -123,6 +123,9 @@ int cgloadglob(int id)
             reglist[r]);
     break;
   case P_LONG:
+  case P_CHARPTR:
+  case P_INTPTR:
+  case P_LONGPTR:
     fprintf(Outfile, "\tmovq\t%s(\%%rip), %s\n", Gsym[id].name, reglist[r]);
     break;
   default:
@@ -205,6 +208,9 @@ int cgstorglob(int r, int id)
             Gsym[id].name);
     break;
   case P_LONG:
+  case P_CHARPTR:
+  case P_INTPTR:
+  case P_LONGPTR:
     fprintf(Outfile, "\tmovq\t%s, %s(\%%rip)\n", reglist[r], Gsym[id].name);
     break;
   default:
@@ -215,13 +221,21 @@ int cgstorglob(int r, int id)
 
 // P_XXXの並びで型のサイズが入った配列
 // 0 はサイズなし
-static int psize[] = {0, 0, 1, 4, 8};
+static int psize[] = {
+    0,
+    0,
+    1,
+    4,
+    8,
+    8,
+    8,
+    8};
 
 // P_XXX型の値を引数に基本型のサイズをバイトで返す
 int cgprimsize(int type)
 {
   // 型が有効か調べる
-  if (type < P_NONE || type > P_LONG)
+  if (type < P_NONE || type > P_LONGPTR)
     fatal("cgprimsize():不正な型です");
   return (psize[type]);
 }
@@ -313,4 +327,33 @@ void cgreturn(int reg, int id)
     fatald("cgreturn:関数の型が不正です", Gsym[id].type);
   }
   cgjump(Gsym[id].endlabel);
+}
+
+// グローバル識別子のアドレスを変数へ読み込む
+// コードを生成する。レジスタ番号を返す。
+int cgaddress(int id)
+{
+  int r = alloc_register();
+
+  fprintf(Outfile, "\tleaq\t%s(%%rip), %s\n", Gsym[id].name, reglist[r]);
+  return (r);
+}
+
+// ポインタを間接参照して
+// 同じレジスタを指す値を取得する
+int cgderef(int r, int type)
+{
+  switch (type)
+  {
+  case P_CHARPTR:
+    fprintf(Outfile, "\tmovzbq\t(%s), %s\n", reglist[r], reglist[r]);
+    break;
+  case P_INTPTR:
+    fprintf(Outfile, "\tmovq\t(%s), %s\n", reglist[r], reglist[r]);
+    break;
+  case P_LONGPTR:
+    fprintf(Outfile, "\tmovq\t(%s), %s\n", reglist[r], reglist[r]);
+    break;
+  }
+  return (r);
 }

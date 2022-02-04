@@ -10,7 +10,7 @@ struct ASTnode *funccall(void)
   struct ASTnode *tree;
   int id;
 
-  // 識別子医が定義されているか調べる
+  // 識別子が定義されているか調べる
   // それから葉ノードを作る
   if ((id = findglob(Text)) == -1)
   {
@@ -86,6 +86,7 @@ static int arithop(int tokentype)
   if (tokentype > T_EOF && tokentype < T_INTLIT)
     return (tokentype);
   fatald("構文エラー、トークン", tokentype);
+  return (0);
 }
 
 // 各トークンのオペレータ優先順位
@@ -104,6 +105,51 @@ static int op_precedence(int tokentype)
   return (prec);
 }
 
+// prefix_expression: primary
+//     | '*' prefix_expression
+//     | '&' prefix_expression
+//     ;
+
+// プレフィクス式をパースしそのサブツリーを返す。
+struct ASTnode *prefix(void)
+{
+  struct ASTnode *tree;
+  switch (Token.token)
+  {
+  case T_AMPER:
+    // 次のトークンを取得し、プレフィクス式として
+    // 再帰的にパースする。
+    scan(&Token);
+    tree = prefix();
+
+    // 識別子であるか確認する。
+    if (tree->op != A_IDENT)
+      fatal("& オペレータの後ろに識別子がありません。");
+
+    // 操作をA_ADDRに、
+    // 型を元の型を指すポインタに変更する。
+    tree->op = A_ADDR;
+    tree->type = pointer_to(tree->type);
+    break;
+  case T_STAR:
+    // 次のトークンを取得し、プレフィクス式として
+    // 再帰的にパースする。
+    scan(&Token);
+    tree = prefix();
+
+    // とりあえず間接演算子か識別子か確認する。
+    if (tree->op != A_IDENT && tree->op != A_DEREF)
+      fatal("* オペレータの後ろに識別子も * もありません。");
+
+    // ツリーの先頭にA_DEREF操作を付与。
+    tree = mkastunary(A_DEREF, value_at(tree->type), tree, 0);
+    break;
+  default:
+    tree = primary();
+  }
+  return (tree);
+}
+
 // ルートが２項演算子であるASTツリーを返す。
 // 引数ptpは１つ前のトークンの優先順位
 struct ASTnode *binexpr(int ptp)
@@ -114,7 +160,7 @@ struct ASTnode *binexpr(int ptp)
 
   // 左の整数リテラルを取得
   // 同時に次のトークンも取得
-  left = primary();
+  left = prefix();
 
   // セミコロンか')'を見つけたら左ノードだけを返す。
   tokentype = Token.token;

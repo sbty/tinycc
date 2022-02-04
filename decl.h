@@ -8,7 +8,8 @@ struct ASTnode *mkastnode(int op, int type,
                           struct ASTnode *mid,
                           struct ASTnode *right, int intvalue);
 struct ASTnode *mkastleaf(int op, int type, int intvalue);
-struct ASTnode *mkastunary(int op, int type, struct ASTnode *left, int intvalue);
+struct ASTnode *mkastunary(int op, int type,
+                           struct ASTnode *left, int intvalue);
 
 // gen.c
 int genlabel(void);
@@ -44,6 +45,8 @@ void cgjump(int l);
 int cgwiden(int r, int oldtype, int newtype);
 int cgprimsize(int type);
 void cgreturn(int reg, int id);
+int cgaddress(int id);
+int cgderef(int r, int type);
 
 // expr.c
 struct ASTnode *funccall(void);
@@ -75,3 +78,5 @@ struct ASTnode *function_declaration(void);
 
 // types.c
 int type_compatible(int *left, int *right, int onlyright);
+int pointer_to(int type);
+int value_at(int type);

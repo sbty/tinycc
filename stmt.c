@@ -15,8 +15,11 @@ static struct ASTnode *single_statement(void);
 // statement: print_statement
 //      |     declaration
 //      |     assignment_statement
+//      |     function_call
 //      |     if_statement
 //      |     while_statement
+//      |     for_statement
+//      |     return_statement
 //      ;
 //
 // print_statement: 'print' expression ';'  ;
@@ -268,6 +271,7 @@ static struct ASTnode *single_statement(void)
   default:
     fatald("構文エラー token", Token.token);
   }
+  return (NULL);
 }
 
 // 合成ステートメントをパースしそのASTを返す

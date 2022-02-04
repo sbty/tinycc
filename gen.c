@@ -164,6 +164,10 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     return (NOREG);
   case A_FUNCCALL:
     return (cgcall(leftreg, n->v.id));
+  case A_ADDR:
+    return (cgaddress(n->v.id));
+  case A_DEREF:
+    return (cgderef(leftreg, n->left->type));
   default:
     fatald("不明なAST操作です", n->op);
   }
