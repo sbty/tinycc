@@ -90,3 +90,80 @@ void global_declarations(void) {
   global_declarations();        // グローバル宣言をパース
   genpostamble();               // ポストアンブルを出力
 ```
+
+### `var_declaration()`
+
+関数のパースはこれまでとほぼ同じですが、型と識別子のスキャンが別の場所で行われることと、型を引数として受け取るところが違います。
+
+変数のパースからも型と識別子をスキャンするコードがなくなっています。識別子をグローバルシンボルに加え、そのためのアセンブリコードを生成すればいいのです。ですがそうするとループを追加する必要があります。後ろに','がついていた場合、同じ型を持つ次の識別子を取得するためにループの先頭に戻ります。そして';'がついていた場合、変数宣言の終わりとなります。
+
+```c
+// 複数の変数宣言をパースする。
+// 識別子はスキャンされており、型情報を持っている。
+void var_declaration(int type) {
+  int id;
+
+  while (1) {
+    // グローバル変数Textには識別子の名前が入っている。
+    // 既知の識別子として登録。
+    // さらにその場所をアセンブリで生成する。
+    id = addglob(Text, type, S_VARIABLE, 0);
+    genglobsym(id);
+
+    // 次のトークンがセミコロンであればスキップしてリターン。
+    if (Token.token == T_SEMI) {
+      scan(&Token);
+      return;
+    }
+    // 次のトークンがコンマであればスキップして識別子を取得、
+    // ループの先頭へ戻る。
+    if (Token.token == T_COMMA) {
+      scan(&Token);
+      ident();
+      continue;
+    }
+    fatal("識別子の後ろに , も ; もありません");
+  }
+}
+```
+
+## ローカル変数もどき
+
+`var_declaration()`は複数の変数宣言をパースできるようになりましたが、型と最初の識別子が事前にスキャンされている必要が有ります。
+
+そこで`stmt.c`の`single_statement()`内での`var_declaration()`の呼び出しを残しました。将来、ローカル変数の宣言に対応するためこれを修正することになるでしょう。ですが今はとりあえず、次のサンプルプログラムでの全変数はグローバルとします。
+
+```c
+int   d, f;
+int  *e;
+
+int main() {
+  int a, b, c;
+  b= 3; c= 5; a= b + c * 10;
+  printint(a);
+
+  d= 12; printint(d);
+  e= &d; f= *e; printint(f);
+  return(0);
+}
+```
+
+## 変更点のテスト
+
+上記のコードは`tests/input16.c`です。いつもどおりテストします。
+
+```bash
+$ make test16
+cc -o comp1 -g -Wall cg.c decl.c expr.c gen.c main.c misc.c scan.c
+      stmt.c sym.c tree.c types.c
+./comp1 tests/input16.c
+cc -o out out.s lib/printint.c
+./out
+53
+12
+12
+```
+
+## まとめ
+
+次回はポインタにオフセットを追加する問題に取り組みます。
