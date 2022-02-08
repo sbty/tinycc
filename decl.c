@@ -3,6 +3,24 @@
 #include "decl.h"
 
 // 宣言のパース
+// global_declarations : global_declarations
+//      | global_declaration global_declarations
+//      ;
+//
+// global_declaration: function_declaration | var_declaration ;
+//
+// function_declaration: type identifier '(' ')' compound_statement   ;
+//
+// var_declaration: type identifier_list ';'  ;
+//
+// type: type_keyword opt_pointer  ;
+//
+// type_keyword: 'void' | 'char' | 'int' | 'long'  ;
+//
+// opt_pointer: <empty> | '*' opt_pointer  ;
+//
+// identifier_list: identifier | identifier ',' identifier_list ;
+//
 
 // 今見ているトークンをパースし
 // その基本的な型をenumの値で返す
@@ -43,37 +61,48 @@ int parse_type(void)
 
 // variable_declaration: 'int' identifier ';'  ;
 // 変数宣言のパース
-void var_declaration(void)
+void var_declaration(int type)
 {
-  int id, type;
+  int id;
 
-  // 変数の型を取得し、その後識別子を取得する
-  type = parse_type();
-  ident();
+  while (1)
+  {
+    // Textには識別子の名前が入っている
+    // 既知の識別子として登録
+    // アセンブリでその場所を生成
+    id = addglob(Text, type, S_VARIABLE, 0);
+    genglobsym(id);
 
-  // Textには識別子の名前が入っている
-  // 既知の識別子として登録
-  // アセンブリでその場所を生成
-  id = addglob(Text, type, S_VARIABLE, 0);
-  genglobsym(id);
+    // 次のトークンがセミコロンであれば
+    // スキップしてreturn
+    if (Token.token == T_SEMI)
+    {
+      scan(&Token);
+      return;
+    }
 
-  // 後続のセミコロンを取得
-  semi();
+    // 次のトークンがカンマであれば
+    // スキップして識別子を取得、ループの先頭へ戻る。
+    if (Token.token == T_COMMA)
+    {
+      scan(&Token);
+      ident();
+      continue;
+    }
+    fatal("識別子の後ろに , も ; もありません");
+  }
 }
 
 // 今の所、関数宣言はかなり単純化された文法
 // function_declaration: 'void' identifier '(' ')' compound_statement   ;
 
 // 単純化された関数の宣言をパース
-struct ASTnode *function_declaration(void)
+struct ASTnode *function_declaration(int type)
 {
   struct ASTnode *tree, *finalstmt;
-  int nameslot, type, endlabel;
+  int nameslot, endlabel;
 
-  // 変数の型を取得し、その後識別子を取得
-  type = parse_type();
-  ident();
-
+  // グローバル変数Textには識別子の名前が入っている。
   // エンドラベルのラベルidを取得、
   // 関数をシンボルテーブルに追加、
   // グローバルのFuncionidに関数のシンボルidをセット
@@ -104,4 +133,39 @@ struct ASTnode *function_declaration(void)
   // 関数の名前枠と合成ステートメントサブツリーを
   // 持っているFUNCTIONノードを返す
   return (mkastunary(A_FUNCTION, type, tree, nameslot));
+}
+
+// 変数化関数の1つ以上のグローバル宣言をパースする。
+void global_declarations(void)
+{
+  struct ASTnode *tree;
+  int type;
+
+  while (1)
+  {
+
+    // 型と識別子の後ろを見て関数宣言の'('か、
+    // 変数宣言の','または';'か確認する。
+    // Textはident()の呼び出しにより中身が入っている。
+    type = parse_type();
+    ident();
+    if (Token.token == T_LPAREN)
+    {
+
+      // 関数宣言をパースして
+      // アセンブリコードを生成する。
+      tree = function_declaration(type);
+      genAST(tree, NOREG, 0);
+    }
+    else
+    {
+
+      // グローバルの変数宣言をパースする
+      var_declaration(type);
+    }
+
+    // EOFについたら終了
+    if (Token.token == T_EOF)
+      break;
+  }
 }
