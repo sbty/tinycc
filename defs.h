@@ -38,6 +38,7 @@ enum
   T_RPAREN,
   T_AMPER,
   T_LOGAND,
+  T_COMMA,
   // 他キーワード
   T_PRINT,
   T_IF,

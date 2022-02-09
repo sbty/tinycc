@@ -249,6 +249,8 @@ static struct ASTnode *return_statement(void)
 // そのASTを返す
 static struct ASTnode *single_statement(void)
 {
+  int type;
+
   switch (Token.token)
   {
   case T_PRINT:
@@ -256,7 +258,12 @@ static struct ASTnode *single_statement(void)
   case T_CHAR:
   case T_INT:
   case T_LONG:
-    var_declaration();
+    // 変数宣言の開始。
+    // 型をパースして識別子を取得
+    // それから宣言の残りをパースする
+    type = parse_type();
+    ident();
+    var_declaration(type);
     return (NULL); // No AST generated here
   case T_IDENT:
     return (assignment_statement());

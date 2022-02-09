@@ -69,7 +69,7 @@ int pointer_to(int type)
     newtype = P_LONGPTR;
     break;
   default:
-    fatald("Unrecognised in pointer_to: type", type);
+    fatald("pointer_to: 型を認識できません", type);
   }
   return (newtype);
 }

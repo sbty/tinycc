@@ -24,7 +24,6 @@ static void usage(char *prog)
 // 入力ファイルを開いてscanfileを呼びtokenを見ていく。
 int main(int argc, char *argv[])
 {
-    struct ASTnode *tree;
 
     if (argc != 2)
         usage(argv[0]);
@@ -47,16 +46,10 @@ int main(int argc, char *argv[])
     // とりあえずvoid printint()を確実に定義する
     addglob("printint", P_CHAR, S_FUNCTION, 0);
 
-    scan(&Token);  // 入力ファイルの最初のトークンを取得
-    genpreamble(); // プレアンブルを出力
-    while (1)
-    {
-        tree = function_declaration(); // 入力の合成ステートメントをパース
-        genAST(tree, NOREG, 0);        // アセンブリコードを生成
-        if (Token.token == T_EOF)
-            break; // 入力されたステートメントをパース
-    }
-    genpostamble();
-    fclose(Outfile);
+    scan(&Token);          // 入力ファイルの最初のトークンを取得
+    genpreamble();         // プレアンブルを出力
+    global_declarations(); // グローバル宣言のパース
+    genpostamble();        // ポストアンブルを出力
+    fclose(Outfile);       // 出力ファイルを閉じて終了
     return (0);
 }
