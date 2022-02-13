@@ -131,3 +131,22 @@ struct ASTnode {
   } v;
 };
 ```
+
+## 追加した`modify_type()` APIの利用
+
+追加したAPIにより`stmt.c`と`expr.c`にあったA_WIDENへの重複したコードを削除できるようになりました。ですがこの新しい関数は1つのツリーだけを引数に取ります。本当に1つしかツリーがないのであればこれで問題ありません。今の所`stmt.c`の`modify_type()`の呼び出しは3回あります。すべて似ているので`assignment_statement()`を見ていきます。
+
+```c
+  // 左辺値の代入のためのASTノードを作成
+  right = mkastleaf(A_LVIDENT, Gsym[id].type, id);
+
+  ...
+  // 後続の式をパース
+  left = binexpr(0);
+
+  // 2つの型に互換性があるか確認
+  left = modify_type(left, right->type, 0);
+  if (left == NULL) fatal("代入の式に互換性がありません");
+```
+
+これまでのコードよりもずっとスッキリしています。
