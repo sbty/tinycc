@@ -150,3 +150,64 @@ struct ASTnode {
 ```
 
 これまでのコードよりもずっとスッキリしています。
+
+### `binexpr()`について
+
+`expr.c`の`binexpr()`では加算や乗算のように2つのASTツリーを二項演算子で組み合わせる必要が有ります。そこで他のツリーの型とそれぞれのツリーを`modify_type()`してみます。一方を拡張することもあれば、もう一方は失敗しNULLを返すことを示唆します。ですから、型が非互換であるとみなすには片方だけの`modify_type()`の戻り値がNULLだったというだけではなく、両方がNULLであるという確認が必要です。`binexpr()`の比較コードを見ていきます。
+
+```c
+struct ASTnode *binexpr(int ptp) {
+  struct ASTnode *left, *right;
+  struct ASTnode *ltemp, *rtemp;
+  int ASTop;
+  int tokentype;
+
+  ...
+  // 左のツリーを取得
+  // 同時に次のトークンを取得
+  left = prefix();
+  tokentype = Token.token;
+
+  ...
+  // トークンの優先順位をつけてbinexpr()を再帰的に呼び出し、
+  // サブツリーを構築する。
+  right = binexpr(OpPrec[tokentype]);
+
+  // 各ツリーをもう一方の型と一致するよう修正して
+  // 2つの型に互換性があるか確認する。
+  ASTop = arithop(tokentype);
+  ltemp = modify_type(left, right->type, ASTop);
+  rtemp = modify_type(right, left->type, ASTop);
+  if (ltemp == NULL && rtemp == NULL)
+    fatal("二項式で型に互換性がありません。");
+
+  // 拡張、拡縮したツリーを更新
+  if (ltemp != NULL) left = ltemp;
+  if (rtemp != NULL) right = rtemp;
+```
+
+コードは少し散らかっていますが、以前とやっていることは変わりなく、A_SCALEとA_WIDENを処理するようになりました。
+
+## スケーリングの実行
+
+`defs.h`のASTノード操作の一覧にA_SCALEを追加しました。これを実装していきます。
+
+上で言及したとおり、A_SCALE操作は子の値を`struct ASTnode`に追加したユニオンフィールドに保存されているサイズによって倍加します。整数型の場合、すべて2倍となります。この事実から、特定の数のビット分だけ左シフトすることで子の値を倍加することができます。
+
+後に2の乗数ではないサイズを持つ構造体を追加するつもりです。そのためスケールファクターが適切であればシフトの最適化が可能ですが、そうでなければ乗算による実装も必要になります。
+
+これを行うコードを`gen.c`の`genAST()`に追加しました。
+
+```c
+    case A_SCALE:
+      // 小さな最適化: スケール値が2の乗数であればシフト演算を使う
+      switch (n->v.size) {
+        case 2: return(cgshlconst(leftreg, 1));
+        case 4: return(cgshlconst(leftreg, 2));
+        case 8: return(cgshlconst(leftreg, 3));
+        default:
+          // サイズが入ったレジスタを読み込み
+          // そのサイズとleftregを乗算する。
+          rightreg= cgloadint(n->v.size, P_INT);
+          return (cgmul(leftreg, rightreg));
+```
