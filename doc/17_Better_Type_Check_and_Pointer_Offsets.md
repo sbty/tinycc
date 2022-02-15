@@ -211,3 +211,92 @@ struct ASTnode *binexpr(int ptp) {
           rightreg= cgloadint(n->v.size, P_INT);
           return (cgmul(leftreg, rightreg));
 ```
+
+
+## x86-64コードでの左シフト
+
+レジスタ値を定数量左シフトするため、`cgshlconst()`が必要になりました。後々C言語での'<<'オペレータを追加するときにより一般的な左シフト関数を書く予定です。とりあえず整数の定数値をつけてsalq命令が使えるようになりました。
+
+```c
+// 定数量レジスタ値を左シフトする
+int cgshlconst(int r, int val) {
+  fprintf(Outfile, "\tsalq\t$%d, %s\n", val, reglist[r]);
+  return(r);
+}
+```
+
+## 今は機能しないテストプログラム
+
+スケール機能のためのテストプログラムは`tests/input16.c`です。
+
+```c
+int   c;
+int   d;
+int  *e;
+int   f;
+
+int main() {
+  c= 12; d=18; printint(c);
+  e= &c + 1; f= *e; printint(f);
+  return(0);
+}
+```
+
+次のアセンブリディレティブを見たときは、`d`は`c`のあとにアセンブラによって即時に置き換えられると期待していました。
+
+```assembly
+        .comm   c,1,1
+        .comm   d,4,4
+```
+
+ですがアセンブリ出力をコンパイルしチェックすると、これらは隣接していませんでした。
+
+```bash
+$ cc -o out out.s lib/printint.c
+$ nm -n out | grep 'B '
+0000000000201018 B d
+0000000000201020 B b
+0000000000201028 B f
+0000000000201030 B e
+0000000000201038 B c
+```
+
+`d`は実際には`c`の前に来ています。確実に隣接する方法を実現しなければなりませんでした。そこでSubCの該当するコード生成を見直し、コンパイラを修正して次のように生成するようにしました。
+
+```assembly
+        .data
+        .globl  c
+c:      .long   0 # 4バイト整数
+        .globl  d
+d:      .long   0
+        .globl  e
+e:      .quad   0 # 8バイトポインタ
+        .globl  f
+f:      .long   0
+```
+
+テスト`input16.c`を実行したとき、`e=&c+1;f=*e;`は`c`の1つとなりの整数が入ったアドレスを受け取り、整数の値を`f`に保存します。
+
+```c
+  int   c;
+  int   d;
+  ...
+  c= 12; d=18; printint(c);
+  e= &c + 1; f= *e; printint(f);
+```
+
+どちらの整数も出力してみます。
+
+```bash
+cc -o comp1 -g -Wall cg.c decl.c expr.c gen.c main.c misc.c
+      scan.c stmt.c sym.c tree.c types.c
+./comp1 tests/input16.c
+cc -o out out.s lib/printint.c
+./out
+12
+18
+```
+
+## まとめ
+
+型間で変換を行うコードはかなりうまく行ったように思います。裏では`modify_type()`に渡される可能性のある型の値だけでなく、二項演算と演算のためのゼロすべてをテストするコードを書きました。出力を見ましたが思い通りに行っているように見えます。時間が経てばわかるでしょう。
