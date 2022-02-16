@@ -38,7 +38,6 @@ enum
   T_RPAREN,
   T_AMPER,
   T_LOGAND,
-  T_COMMA,
   // 他キーワード
   T_PRINT,
   T_IF,
@@ -80,7 +79,8 @@ enum
   A_RETURN,
   A_FUNCCALL,
   A_DEREF,
-  A_ADDR
+  A_ADDR,
+  A_SCALE
 
 };
 
@@ -110,6 +110,7 @@ struct ASTnode
   {
     int intvalue; // A_INTLITの整数値
     int id;       // A_IDENTのシンボルスロット番号
+    int size;     // A_SCALE用。スケールするサイズ
   } v;
 };
 

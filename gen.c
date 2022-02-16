@@ -168,6 +168,22 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     return (cgaddress(n->v.id));
   case A_DEREF:
     return (cgderef(leftreg, n->left->type));
+  case A_SCALE:
+    // 小さな最適化: スケール値が2の乗数であればシフト演算を使う
+    switch (n->v.size)
+    {
+    case 2:
+      return (cgshlconst(leftreg, 1));
+    case 4:
+      return (cgshlconst(leftreg, 2));
+    case 8:
+      return (cgshlconst(leftreg, 3));
+    default:
+      // サイズが入ったレジスタを読み込み、
+      // leftregをsize分だけ倍加する
+      rightreg = cgloadint(n->v.size, P_INT);
+      return (cgmul(leftreg, rightreg));
+    }
   default:
     fatald("不明なAST操作です", n->op);
   }

@@ -155,7 +155,8 @@ struct ASTnode *prefix(void)
 struct ASTnode *binexpr(int ptp)
 {
   struct ASTnode *left, *right;
-  int lefttype, righttype;
+  struct ASTnode *ltemp, *rtemp;
+  int ASTop;
   int tokentype;
 
   // 左の整数リテラルを取得
@@ -179,20 +180,18 @@ struct ASTnode *binexpr(int ptp)
     right = binexpr(OpPrec[tokentype]);
 
     // 2つの型に互換性があるか確認
-    lefttype = left->type;
-    righttype = right->type;
-    if (!type_compatible(&lefttype, &righttype, 0))
+    ASTop = arithop(tokentype);
+    ltemp = modify_type(left, right->type, ASTop);
+    rtemp = modify_type(right, left->type, ASTop);
+    if (ltemp == NULL && rtemp == NULL)
       fatal("型に互換性がありません");
-
-    // 要求があればどちらか一方を拡張する
-    // k型を表す変数はA_WIDEN
-    if (lefttype)
-      left = mkastunary(lefttype, right->type, left, 0);
-    if (righttype)
-      right = mkastunary(righttype, left->type, right, 0);
+    if (ltemp != NULL)
+      left = ltemp;
+    if (rtemp != NULL)
+      right = rtemp;
 
     // サブツリーを結合する。
-    // 同時にトークンをAST操作に変換
+    // 同時にトークンをAST操作へ変換
     left = mkastnode(arithop(tokentype), left->type, left, NULL, right, 0);
 
     // 現在のトークンの詳細を更新

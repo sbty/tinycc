@@ -194,6 +194,13 @@ int cgcall(int r, int id)
   return (outr);
 }
 
+// 定数量レジスタを左へシフト
+int cgshlconst(int r, int val)
+{
+  fprintf(Outfile, "\tsalq\t$%d, %s\n", val, reglist[r]);
+  return (r);
+}
+
 // レジスタの値を変数に保存
 int cgstorglob(int r, int id)
 {
@@ -247,7 +254,24 @@ void cgglobsym(int id)
   // 型のサイズを取得
   typesize = cgprimsize(Gsym[id].type);
 
-  fprintf(Outfile, "\t.comm\t%s,%d,%d\n", Gsym[id].name, typesize, typesize);
+  fprintf(Outfile, "\t.data\n"
+                   "\t.globl\t%s\n",
+          Gsym[id].name);
+
+  switch (typesize)
+  {
+  case 1:
+    fprintf(Outfile, "%s:\t.byte\t0\n", Gsym[id].name);
+    break;
+  case 4:
+    fprintf(Outfile, "%s:\t.long\t0\n", Gsym[id].name);
+    break;
+  case 8:
+    fprintf(Outfile, "%s:\t.quad\t0\n", Gsym[id].name);
+    break;
+  default:
+    fatald("cgglobsym:型のサイズが不明です ", typesize);
+  }
 }
 
 // 比較命令のリスト

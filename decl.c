@@ -65,32 +65,13 @@ void var_declaration(int type)
 {
   int id;
 
-  while (1)
-  {
-    // Textには識別子の名前が入っている
-    // 既知の識別子として登録
-    // アセンブリでその場所を生成
-    id = addglob(Text, type, S_VARIABLE, 0);
-    genglobsym(id);
-
-    // 次のトークンがセミコロンであれば
-    // スキップしてreturn
-    if (Token.token == T_SEMI)
-    {
-      scan(&Token);
-      return;
-    }
-
-    // 次のトークンがカンマであれば
-    // スキップして識別子を取得、ループの先頭へ戻る。
-    if (Token.token == T_COMMA)
-    {
-      scan(&Token);
-      ident();
-      continue;
-    }
-    fatal("識別子の後ろに , も ; もありません");
-  }
+  // Textには識別子の名前が入っている
+  // 既知の識別子として登録
+  // アセンブリでその場所を生成
+  id = addglob(Text, type, S_VARIABLE, 0);
+  genglobsym(id);
+  // 後続のセミコロンを取得
+  semi();
 }
 
 // 今の所、関数宣言はかなり単純化された文法
