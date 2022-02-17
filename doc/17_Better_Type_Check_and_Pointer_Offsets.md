@@ -212,7 +212,6 @@ struct ASTnode *binexpr(int ptp) {
           return (cgmul(leftreg, rightreg));
 ```
 
-
 ## x86-64コードでの左シフト
 
 レジスタ値を定数量左シフトするため、`cgshlconst()`が必要になりました。後々C言語での'<<'オペレータを追加するときにより一般的な左シフト関数を書く予定です。とりあえず整数の定数値をつけてsalq命令が使えるようになりました。

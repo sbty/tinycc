@@ -27,7 +27,6 @@ static struct ASTnode *single_statement(void);
 static struct ASTnode *print_statement(void)
 {
   struct ASTnode *tree;
-  int lefttype, righttype;
 
   // printを最初のトークンとしてチェック
   match(T_PRINT, "print");
@@ -36,16 +35,11 @@ static struct ASTnode *print_statement(void)
   tree = binexpr(0);
 
   // 2つの型に互換性があるか確認
-  lefttype = P_INT;
-  righttype = tree->type;
-  if (!type_compatible(&lefttype, &righttype, 0))
+  tree = modify_type(tree, P_INT, 0);
+  if (tree == NULL)
     fatal("型に互換性がありません");
 
-  // 要求があれば型を拡張
-  if (righttype)
-    tree = mkastunary(righttype, P_INT, tree, 0);
-
-  // printASTツリーを出力
+  // print ASTツリーを出力
   tree = mkastunary(A_PRINT, P_NONE, tree, 0);
 
   return (tree);
@@ -55,7 +49,6 @@ static struct ASTnode *print_statement(void)
 static struct ASTnode *assignment_statement(void)
 {
   struct ASTnode *left, *right, *tree;
-  int lefttype, righttype;
   int id;
 
   // 識別子があるか調べる
@@ -82,14 +75,9 @@ static struct ASTnode *assignment_statement(void)
   left = binexpr(0);
 
   // 2つの型に互換性があるか調べる
-  lefttype = left->type;
-  righttype = right->type;
-  if (!type_compatible(&lefttype, &righttype, 1))
+  left = modify_type(left, right->type, 0);
+  if (left == NULL)
     fatal("型に互換性がありません。");
-
-  // 要求があれば左を拡張
-  if (lefttype)
-    left = mkastunary(lefttype, right->type, left, 0);
 
   // 代入のASTを作る
   tree = mkastnode(A_ASSIGN, P_INT, left, NULL, right, 0);
@@ -214,7 +202,6 @@ static struct ASTnode *for_statement(void)
 static struct ASTnode *return_statement(void)
 {
   struct ASTnode *tree;
-  int returntype, functype;
 
   // 関数の型がP_VOIDであれば値は返せない
   if (Gsym[Functionid].type == P_VOID)
@@ -228,14 +215,9 @@ static struct ASTnode *return_statement(void)
   tree = binexpr(0);
 
   // 関数の型と互換性があるか確認
-  returntype = tree->type;
-  functype = Gsym[Functionid].type;
-  if (!type_compatible(&returntype, &functype, 1))
+  tree = modify_type(tree, Gsym[Functionid].type, 0);
+  if (tree == NULL)
     fatal("型に互換性がありません");
-
-  // 必要なら左を拡張
-  if (returntype)
-    tree = mkastunary(returntype, functype, tree, 0);
 
   // A_RETURNノードに追加
   tree = mkastunary(A_RETURN, P_NONE, tree, 0);
