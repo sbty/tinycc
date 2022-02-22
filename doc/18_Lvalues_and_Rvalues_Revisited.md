@@ -110,3 +110,34 @@ static int OpPrec[] = {
   50, 50, 50, 50                // T_LT, T_GT, T_LE, T_GE
 };
 ```
+
+## パーサへの変更
+
+ステートメントとみなしている代入のパースを取り除き、式とする必要が有ります。また、`printint()`を呼び出せるようになったので言語から"print"ステートメントを削除しました。というわけで、`stmt.c`では`print_statement()`と`assignment_statement()`の両方を削除しました。
+
+> またT_PRINTとprintキーワードも削除しました。左辺値と右辺値のコンセプトも違うためA_LVIDENT ASTノード型も削除しました。
+
+とりあえず`stmt.c`にある`single_statement()`は最初のトークンを認識しないのであれば、次にくるものが式であるとみなすようになっています。
+
+```c
+static struct ASTnode *single_statement(void) {
+  int type;
+
+  switch (Token.token) {
+    ...
+    default:
+    // 取り合えすこれが式であるか確認する
+    // ここで代入ステートメントを補足する
+    return (binexpr(0));
+  }
+}
+```
+
+これは`2+3;`を問題ないステートメントとして処理されます。後に修正します。そして`compound_statement()`で式の後ろにセミコロンがあるか確認します。
+
+```c
+    // 一部のステートメントは後ろにセミコロンが必須
+    if (tree != NULL && (tree->op == A_ASSIGN ||
+                         tree->op == A_RETURN || tree->op == A_FUNCCALL))
+      semi();
+```
