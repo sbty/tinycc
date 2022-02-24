@@ -182,3 +182,65 @@ static struct ASTnode *single_statement(void) {
 アセンブリの出力順になるようにはノードを逆にしました。最初に`b`に3を保存します。それからこの代入の結果である3を`a`に保存します。
 
 ### プラット(Pratt)パーサの修正
+
+二項演算子の優先順位を適切にパースするため、プラットパーサを使用しています。プラットパーサに右接合を追加する方法を見つけ出すために調査を行い、[wikipedia](https://en.wikipedia.org/wiki/Operator-precedence_parser)で次の情報を見つけました。
+
+> 見据えているものはopよりも優先度の高い二項演算子、あるいはopと等しい優先順位である右結合オペレータ
+
+というわけで、右結合オペレータでは次のオペレータが直前のオペレータと同じ優先順位であるかテストします。これはパーサロジックへのかんたんな修正です。`expr.c`に新しい関数を導入し、オペレータが右結合か判断するようにしました。
+
+```c
+// トークンが右結合であればtrue、そうでなければfalseを返す
+static int rightassoc(int tokentype) {
+  if (tokentype == T_ASSIGN)
+    return(1);
+  return(0);
+}
+```
+
+`binexpr()`では前述したようにwhileループを変更し、更にA_ASSIGN固有のコードを入れて子ツリーを入れ替えるようにします。
+
+```c
+struct ASTnode *binexpr(int ptp) {
+  struct ASTnode *left, *right;
+  struct ASTnode *ltemp, *rtemp;
+  int ASTop;
+  int tokentype;
+
+  // 左にあるツリーを取得
+  left = prefix();
+  ...
+
+  // このトークンの優先順位が直前のものより高いか、
+  // 右結合で直前のトークンの優先順位と等しい限りループする
+   while ((op_precedence(tokentype) > ptp) ||
+         (rightassoc(tokentype) && op_precedence(tokentype) == ptp)) {
+    ...
+    // 再帰的にbinexpr()にトークンの優先順位を渡して呼び出し
+    // サブツリーを構築する
+    right = binexpr(OpPrec[tokentype]);
+
+    ASTop = binastop(tokentype);
+    if (ASTop == A_ASSIGN) {
+      // 代入
+      // 右側のツリーを右辺値に入れる
+      right->rvalue= 1;
+      ...
+
+      // leftとrightを切り替えて右の式のコードが
+      // 左の式より先に生成されるようにする
+      ltemp= left; left= right; right= ltemp;
+    } else {
+      // 代入は行わないので両ツリーは右辺値となる
+      left->rvalue= 1;
+      right->rvalue= 1;
+    }
+    ...
+  }
+  ...
+}
+```
+
+代入式の右側を右辺地として明示的にマークするコードに注目してください。そして代入出ない場合は式の両サイドは右辺値としてマークされます。
+
+`binexpr()`には明示的にツリーを右辺値とセットする数行のコードが散らばっています。これらは葉ノードに入ると実行されます。例えば`b=a`にある識別子aは右辺値としてマークされる必要がありますですが、それをするためのwhileループのボディへ入ることはありません。
