@@ -262,8 +262,6 @@ struct ASTnode *binexpr(int ptp) {
 
 ツリーダンプコードはそれぞれのノードをツリーを逆にした並びで書き出すので、出力はツリーの形をしていません。ですがそれぞれのノードのインデントがツリーでの深さを表します。
 
-
-
 ```c
       A_INTLIT 34
     A_WIDEN
@@ -299,3 +297,58 @@ A_ASSIGN
 ```
 
 識別子`y`が間接参照され右辺値が読み込まれます。これが`x`を間接参照する左辺値へ格納されていきます。
+
+## 上記をコードに落とし込む
+
+左辺値と右辺値ノードははっきりと識別されるようになり、それぞれがどのようにアセンブリコードに変換されるかに目を向けることができます。整数リテラルや加算など、明らかに右辺値であるノードがたくさんあります。`gen.c`の`genAST()`にあるコードで気をつけることは、左辺値になりうるASTノード型についてだけです。以下はそういったノード型に用意したものです。
+
+```c
+    case A_IDENT:
+      // 右辺値であるか間接参照された場合に値を読み込む
+      if (n->rvalue || parentASTop== A_DEREF)
+        return (cgloadglob(n->v.id));
+      else
+        return (NOREG);
+
+    case A_ASSIGN:
+      // 識別子への代入か、ポインタを介したものか?
+      switch (n->right->op) {
+        case A_IDENT: return (cgstorglob(leftreg, n->right->v.id));
+        case A_DEREF: return (cgstorderef(leftreg, rightreg, n->right->type));
+        default: fatald("Can't A_ASSIGN in genAST()でA_AASIGNはできません, op", n->op);
+      }
+
+    case A_DEREF:
+      // 右辺値であればポインタ先を取得するために間接参照する。
+      // そうでなければポインタを介して保存するため、A_ASSIGNに残しておく
+      if (n->rvalue)
+        return (cgderef(leftreg, n->left->type));
+      else
+        return (leftreg);
+```
+
+### x86-64コード生成への変更
+
+`cg.c`への変更はポインタを介した値の保存ができるようにすることだけです。
+
+```c
+// ポインタの間接参照を介した保存
+int cgstorderef(int r1, int r2, int type) {
+  switch (type) {
+    case P_CHAR:
+      fprintf(Outfile, "\tmovb\t%s, (%s)\n", breglist[r1], reglist[r2]);
+      break;
+    case P_INT:
+      fprintf(Outfile, "\tmovq\t%s, (%s)\n", reglist[r1], reglist[r2]);
+      break;
+    case P_LONG:
+      fprintf(Outfile, "\tmovq\t%s, (%s)\n", reglist[r1], reglist[r2]);
+      break;
+    default:
+      fatald("cgstoderefできない型です:", type);
+  }
+  return (r1);
+}
+```
+
+この新しい関数の直前にある`cgderef()`のほぼ真逆です。
