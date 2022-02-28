@@ -136,6 +136,11 @@ void global_declarations(void)
       // 関数宣言をパースして
       // アセンブリコードを生成する。
       tree = function_declaration(type);
+      if (O_dumpAST)
+      {
+        dumpAST(tree, NOLABEL, 0);
+        fprintf(stdout, "\n\n");
+      }
       genAST(tree, NOREG, 0);
     }
     else

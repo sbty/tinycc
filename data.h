@@ -13,3 +13,5 @@ extern_ FILE *Outfile;
 extern_ struct token Token;             // 最後にスキャンしたトークン
 extern_ char Text[TEXTLEN + 1];         // 最後にスキャンした識別子
 extern_ struct symtable Gsym[NSYMBOLS]; // グローバルシンボルテーブル
+
+extern_ int O_dumpAST;

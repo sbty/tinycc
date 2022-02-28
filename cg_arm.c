@@ -177,9 +177,15 @@ int cgloadglob(int id)
   case P_CHAR:
     fprintf(Outfile, "\tldrb\t%s, [r3]\n", reglist[r]);
     break;
-  default:
+  case P_INT:
+  case P_LONG:
+  case P_CHARPTR:
+  case P_INTPTR:
+  case P_LONGPTR:
     fprintf(Outfile, "\tldr\t%s, [r3]\n", reglist[r]);
     break;
+  default:
+    fatald("cgloadglob 型が不正です:", Gsym[id].type);
   }
   return (r);
 }
@@ -408,11 +414,27 @@ int cgderef(int r, int type)
     fprintf(Outfile, "\tldrb\t%s, [%s]\n", reglist[r], reglist[r]);
     break;
   case P_INTPTR:
-    fprintf(Outfile, "\tldr\t%s, [%s]\n", reglist[r], reglist[r]);
-    break;
   case P_LONGPTR:
     fprintf(Outfile, "\tldr\t%s, [%s]\n", reglist[r], reglist[r]);
     break;
   }
   return (r);
+}
+
+// ポインタの間接参照を介した保存
+int cgstorderef(int r1, int r2, int type)
+{
+  switch (type)
+  {
+  case P_CHAR:
+    fprintf(Outfile, "\tstrb\t%s, [%s]\n", reglist[r1], reglist[r2]);
+    break;
+  case P_INT:
+  case P_LONG:
+    fprintf(Outfile, "\tstr\t%s, [%s]\n", reglist[r1], reglist[r2]);
+    break;
+  default:
+    fatald("cgstoderefできない型です:", type);
+  }
+  return (r1);
 }

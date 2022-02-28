@@ -236,6 +236,7 @@ static int psize[] = {
     8,
     8,
     8,
+    8,
     8};
 
 // P_XXX型の値を引数に基本型のサイズをバイトで返す
@@ -378,6 +379,28 @@ int cgderef(int r, int type)
   case P_LONGPTR:
     fprintf(Outfile, "\tmovq\t(%s), %s\n", reglist[r], reglist[r]);
     break;
+  default:
+    fatald("cgderefできない型です:", type);
   }
   return (r);
+}
+
+// ポインタの間接参照を介した保存
+int cgstorderef(int r1, int r2, int type)
+{
+  switch (type)
+  {
+  case P_CHAR:
+    fprintf(Outfile, "\tmovb\t%s, (%s)\n", breglist[r1], reglist[r2]);
+    break;
+  case P_INT:
+    fprintf(Outfile, "\tmovq\t%s, (%s)\n", reglist[r1], reglist[r2]);
+    break;
+  case P_LONG:
+    fprintf(Outfile, "\tmovq\t%s, (%s)\n", reglist[r1], reglist[r2]);
+    break;
+  default:
+    fatald("cgstoderefできない型です:", type);
+  }
+  return (r1);
 }

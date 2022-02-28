@@ -12,6 +12,7 @@ enum
 {
   T_EOF,
   // オペレータ
+  T_ASSIGN,
   T_PLUS,
   T_MINUS,
   T_STAR,
@@ -30,7 +31,6 @@ enum
   //構造上のトークン
   T_INTLIT,
   T_SEMI,
-  T_ASSIGN,
   T_IDENT,
   T_LBRACE,
   T_RBRACE,
@@ -39,7 +39,6 @@ enum
   T_AMPER,
   T_LOGAND,
   // 他キーワード
-  T_PRINT,
   T_IF,
   T_ELSE,
   T_WHILE,
@@ -56,7 +55,8 @@ struct token
 // ASTノード型
 enum
 {
-  A_ADD = 1,
+  A_ASSIGN = 1,
+  A_ADD,
   A_SUBTRACT,
   A_MULTIPLY,
   A_DIVIDE,
@@ -68,9 +68,6 @@ enum
   A_GE,
   A_INTLIT,
   A_IDENT,
-  A_LVIDENT,
-  A_ASSIGN,
-  A_PRINT,
   A_GLUE,
   A_IF,
   A_WHILE,
@@ -103,6 +100,7 @@ struct ASTnode
 {
   int op;               // このツリーで実行される操作
   int type;             // このツリーを生成した式の型
+  int rvalue;           // ノードが右辺値であればtrue
   struct ASTnode *left; // 左右の子ツリー
   struct ASTnode *mid;
   struct ASTnode *right;
@@ -116,6 +114,7 @@ struct ASTnode
 
 #define NOREG -1 // AST生成関数が返すレジスタがないときに使う
 // 構造上の型
+#define NOLABEL 0 // genAST()に渡すラベルがないときに使う
 enum
 {
   S_VARIABLE,

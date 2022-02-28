@@ -75,26 +75,36 @@ static struct ASTnode *primary(void)
   default:
     fatald("構文エラー、トークン", Token.token);
   }
+
+  // 次のトークンをスキャンして葉ノードを返す
   scan(&Token);
   return (n);
 }
 
-// 二項演算子トークンをAST操作に変換
-// トークンからAST操作は1:1で対応しなければならない
-static int arithop(int tokentype)
+// 二項演算子トークンを二項演算子AST操作に変換する。
+// トークンとAST操作は1:1の対応に依存する
+static int binastop(int tokentype)
 {
   if (tokentype > T_EOF && tokentype < T_INTLIT)
     return (tokentype);
-  fatald("構文エラー、トークン", tokentype);
-  return (0);
+  fatald("構文エラー token", tokentype);
+  return (0); //
 }
 
+// トークンが右結合であればtrue、そうでなければfalseを返す
+static int rightassoc(int tokentype)
+{
+  if (tokentype == T_ASSIGN)
+    return (1);
+  return (0);
+}
 // 各トークンのオペレータ優先順位
 static int OpPrec[] = {
-    0, 10, 10,       // T_EOF, T_PLUS, T_MINUS
-    20, 20,          // T_STAR, T_SLASH
-    30, 30,          // T_EQ, T_NE
-    40, 40, 40, 40}; // T_LT, T_GT, T_LE, T_GE
+    0, 10,           // T_EOF, T_ASSIGN
+    20, 20,          // PLUS, T_MINUS
+    30, 30,          // T_STAR, T_SLASH
+    40, 40,          // T_EQ, T_NE
+    50, 50, 50, 50}; // T_LT, T_GT, T_LE, T_GE
 
 // ２項演算子であることを確認してその優先順位を返す
 static int op_precedence(int tokentype)
@@ -166,11 +176,15 @@ struct ASTnode *binexpr(int ptp)
   // セミコロンか')'を見つけたら左ノードだけを返す。
   tokentype = Token.token;
   if (tokentype == T_SEMI || tokentype == T_RPAREN)
+  {
+    left->rvalue = 1;
     return (left);
+  }
 
   // 1つ前のトークン(ptp)よりも現在のトークンの
   // 優先順位が高い限りループする。
-  while (op_precedence(tokentype) > ptp)
+  while ((op_precedence(tokentype) > ptp) ||
+         (rightassoc(tokentype) && op_precedence(tokentype) == ptp))
   {
     //次の整数リテラルを取得
     scan(&Token);
@@ -179,27 +193,57 @@ struct ASTnode *binexpr(int ptp)
     // サブツリーを構築
     right = binexpr(OpPrec[tokentype]);
 
-    // 2つの型に互換性があるか確認
-    ASTop = arithop(tokentype);
-    ltemp = modify_type(left, right->type, ASTop);
-    rtemp = modify_type(right, left->type, ASTop);
-    if (ltemp == NULL && rtemp == NULL)
-      fatal("型に互換性がありません");
-    if (ltemp != NULL)
-      left = ltemp;
-    if (rtemp != NULL)
-      right = rtemp;
+    // サブツリーに対して操作を実行するか判断する
+    ASTop = binastop(tokentype);
 
+    if (ASTop == A_ASSIGN)
+    {
+      // 代入
+      // 右側のツリーを右辺値にする
+      right->rvalue = 1;
+
+      // 右の型が左と一致するか確認
+      right = modify_type(right, left->type, 0);
+      if (left == NULL)
+        fatal("代入の式に互換性がありません");
+
+      // 代入ASTツリーを作る。左と右を切り替えて右の式のコードが
+      // 左の式より先に生成されるようにする。
+      ltemp = left;
+      left = right;
+      right = ltemp;
+    }
+    else
+    {
+
+      // 代入を行っているわけではないので、両ツリーは右辺値となるはず。
+      // 左辺値ツリーであった場合両ツリーを右辺値へと変換する。
+      left->rvalue = 1;
+      right->rvalue = 1;
+
+      // 各ツリーがもう一方の型に合うか修正を試すことで
+      // 互換性があるか確認する。
+      ltemp = modify_type(left, right->type, ASTop);
+      rtemp = modify_type(right, left->type, ASTop);
+      if (ltemp == NULL && rtemp == NULL)
+        fatal("型に互換性がありません");
+      if (ltemp != NULL)
+        left = ltemp;
+      if (rtemp != NULL)
+        right = rtemp;
+    }
     // サブツリーを結合する。
     // 同時にトークンをAST操作へ変換
-    left = mkastnode(arithop(tokentype), left->type, left, NULL, right, 0);
+    left = mkastnode(binastop(tokentype), left->type, left, NULL, right, 0);
 
     // 現在のトークンの詳細を更新
     // セミコロンか')'を見つけたら左ノードを返す
     tokentype = Token.token;
     if (tokentype == T_SEMI || tokentype == T_RPAREN)
-      return (left);
+      left->rvalue = 1;
+    return (left);
   }
-  //優先順位が同じか低いトークンが出る前までのツリーを返す。
+  // 優先順位が同じか低いものになったらツリーを返す
+  left->rvalue = 1;
   return (left);
 }
