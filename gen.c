@@ -30,7 +30,7 @@ static int genIF(struct ASTnode *n)
   genfreeregs();
 
   // true合成ステートメントを生成
-  genAST(n->mid, NOREG, n->op);
+  genAST(n->mid, NOLABEL, n->op);
   genfreeregs();
 
   // else句があれば終わりまでスキップするジャンプを生成
@@ -44,7 +44,7 @@ static int genIF(struct ASTnode *n)
   // 終了ラベルを生成
   if (n->right)
   {
-    genAST(n->right, NOREG, n->op);
+    genAST(n->right, NOLABEL, n->op);
     genfreeregs();
     cglabel(Lend);
   }
@@ -71,7 +71,7 @@ static int genWHILE(struct ASTnode *n)
   genfreeregs();
 
   // while本文の合成ステートメントを生成
-  genAST(n->right, NOREG, n->op);
+  genAST(n->right, NOLABEL, n->op);
   genfreeregs();
 
   // 最後に終了ラベルと条件分岐へ戻る出力
@@ -84,7 +84,7 @@ static int genWHILE(struct ASTnode *n)
 // 親のAST操作を引数に取り、再帰的に
 // アセンブリコードを生成する。
 // 作成した木の最終的な値とそのレジスタIDを返す
-int genAST(struct ASTnode *n, int reg, int parentASTop)
+int genAST(struct ASTnode *n, int label, int parentASTop)
 {
   int leftreg, rightreg;
 
@@ -97,15 +97,15 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     return (genWHILE(n));
   case A_GLUE:
     // 子ステートメントそれぞれと結合しレジスタを開放する
-    genAST(n->left, NOREG, n->op);
+    genAST(n->left, NOLABEL, n->op);
     genfreeregs();
-    genAST(n->right, NOREG, n->op);
+    genAST(n->right, NOLABEL, n->op);
     genfreeregs();
     return (NOREG);
   case A_FUNCTION:
     // コードより先に関数のプレアンブルを生成
     cgfuncpreamble(n->v.id);
-    genAST(n->left, NOREG, n->op);
+    genAST(n->left, NOLABEL, n->op);
     cgfuncpostamble(n->v.id);
     return (NOREG);
   }
@@ -114,9 +114,9 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
 
   // 左右のサブツリーの値を取得
   if (n->left)
-    leftreg = genAST(n->left, NOREG, n->op);
+    leftreg = genAST(n->left, NOLABEL, n->op);
   if (n->right)
-    rightreg = genAST(n->right, leftreg, n->op);
+    rightreg = genAST(n->right, NOLABEL, n->op);
 
   switch (n->op)
   {
@@ -138,24 +138,30 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
     // 生成する。そうでなければレジスタを比較し、その結果に応じて
     // 0か1をセットする
     if (parentASTop == A_IF || parentASTop == A_WHILE)
-      return (cgcompare_and_jump(n->op, leftreg, rightreg, reg));
+      return (cgcompare_and_jump(n->op, leftreg, rightreg, label));
     else
       return (cgcompare_and_set(n->op, leftreg, rightreg));
 
   case A_INTLIT:
     return (cgloadint(n->v.intvalue, n->type));
   case A_IDENT:
-    return (cgloadglob(n->v.id));
-  case A_LVIDENT:
-    return (cgstorglob(reg, n->v.id));
+    // 右辺値または間接参照されているのであれば値を読み込む
+    if (n->rvalue || parentASTop == A_DEREF)
+      return (cgloadglob(n->v.id));
+    else
+      return (NOREG);
+
   case A_ASSIGN:
-    // やることを終えたので結果を返す
-    return (rightreg);
-  case A_PRINT:
-    // 左の子の値を出力しNOREGを返す
-    genprintint(leftreg);
-    genfreeregs();
-    return (NOREG);
+    // 識別子への代入かポインタの介した代入か
+    switch (n->right->op)
+    {
+    case A_IDENT:
+      return (cgstorglob(leftreg, n->right->v.id));
+    case A_DEREF:
+      return (cgstorderef(leftreg, rightreg, n->right->type));
+    default:
+      fatald("genAST()でA_ASSIGNEはできません。 op", n->op);
+    }
   case A_WIDEN:
     // 子の型を親の型へ拡張
     return (cgwiden(leftreg, n->left->type, n->type));
@@ -167,7 +173,12 @@ int genAST(struct ASTnode *n, int reg, int parentASTop)
   case A_ADDR:
     return (cgaddress(n->v.id));
   case A_DEREF:
-    return (cgderef(leftreg, n->left->type));
+    // 右辺値であればポインタの指す値を取得するため間接参照をする
+    // そうでなければポインタを介して保存するためにA_ASSIGNを残しておく
+    if (n->rvalue)
+      return (cgderef(leftreg, n->left->type));
+    else
+      return (leftreg);
   case A_SCALE:
     // 小さな最適化: スケール値が2の乗数であればシフト演算を使う
     switch (n->v.size)
