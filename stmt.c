@@ -12,78 +12,14 @@ static struct ASTnode *single_statement(void);
 //      |      statement statements
 //      ;
 //
-// statement: print_statement
-//      |     declaration
-//      |     assignment_statement
+// statement: declaration
+//      |     expression_statement
 //      |     function_call
 //      |     if_statement
 //      |     while_statement
 //      |     for_statement
 //      |     return_statement
 //      ;
-//
-// print_statement: 'print' expression ';'  ;
-
-static struct ASTnode *print_statement(void)
-{
-  struct ASTnode *tree;
-
-  // printを最初のトークンとしてチェック
-  match(T_PRINT, "print");
-
-  // 続く式をパースしアセンブリを生成
-  tree = binexpr(0);
-
-  // 2つの型に互換性があるか確認
-  tree = modify_type(tree, P_INT, 0);
-  if (tree == NULL)
-    fatal("型に互換性がありません");
-
-  // print ASTツリーを出力
-  tree = mkastunary(A_PRINT, P_NONE, tree, 0);
-
-  return (tree);
-}
-
-// assignment_statement: identifier '=' expression ';'   ;
-static struct ASTnode *assignment_statement(void)
-{
-  struct ASTnode *left, *right, *tree;
-  int id;
-
-  // 識別子があるか調べる
-  ident();
-
-  // ここでは変数か関数呼び出しかわからない
-  // 次のトークンが'('ならば関数呼び出し
-  if (Token.token == T_LPAREN)
-    return (funccall());
-
-  // 関数呼び出しでなければ
-  // 識別子が宣言されているか調べる
-  // そして葉ノードを作成
-  if ((id = findglob(Text)) == -1)
-  {
-    fatals("宣言されていない変数", Text);
-  }
-  right = mkastleaf(A_LVIDENT, Gsym[id].type, id);
-
-  // イコールがあるか調べる
-  match(T_ASSIGN, "=");
-
-  // 続く式をパース
-  left = binexpr(0);
-
-  // 2つの型に互換性があるか調べる
-  left = modify_type(left, right->type, 0);
-  if (left == NULL)
-    fatal("型に互換性がありません。");
-
-  // 代入のASTを作る
-  tree = mkastnode(A_ASSIGN, P_INT, left, NULL, right, 0);
-
-  return (tree);
-}
 
 // if_statement: if_head
 //      |        if_head 'else' compound_statement
@@ -235,8 +171,6 @@ static struct ASTnode *single_statement(void)
 
   switch (Token.token)
   {
-  case T_PRINT:
-    return (print_statement());
   case T_CHAR:
   case T_INT:
   case T_LONG:
@@ -247,8 +181,6 @@ static struct ASTnode *single_statement(void)
     ident();
     var_declaration(type);
     return (NULL); // No AST generated here
-  case T_IDENT:
-    return (assignment_statement());
   case T_IF:
     return (if_statement());
   case T_WHILE:
@@ -258,7 +190,9 @@ static struct ASTnode *single_statement(void)
   case T_RETURN:
     return (return_statement());
   default:
-    fatald("構文エラー token", Token.token);
+    // とりあえずこれが式であるか確認する。
+    // ここでは代入文を捕捉する。
+    return (binexpr(0));
   }
   return (NULL);
 }
@@ -277,7 +211,7 @@ struct ASTnode *compound_statement(void)
     // single statementをパース
     tree = single_statement();
     // 後ろにセミコロンがつかないといけないステートメントか調べる
-    if (tree != NULL && (tree->op == A_PRINT || tree->op == A_ASSIGN ||
+    if (tree != NULL && (tree->op == A_ASSIGN ||
                          tree->op == A_RETURN || tree->op == A_FUNCCALL))
       semi();
 
