@@ -204,7 +204,7 @@ struct ASTnode *binexpr(int ptp)
 
       // 右の型が左と一致するか確認
       right = modify_type(right, left->type, 0);
-      if (left == NULL)
+      if (right == NULL)
         fatal("代入の式に互換性がありません");
 
       // 代入ASTツリーを作る。左と右を切り替えて右の式のコードが

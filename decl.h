@@ -83,3 +83,5 @@ void global_declarations(void);
 // types.c
 int parse_type(void);
 int pointer_to(int type);
+int value_at(int type);
+struct ASTnode *modify_type(struct ASTnode *tree, int rtype, int op);
