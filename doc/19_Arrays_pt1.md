@@ -87,3 +87,43 @@ static struct ASTnode *primary(void) {
   return (n);
 }
 ```
+
+以上です。式に括弧を使えるように数行追加しただけです。追加したコードではswitch文を抜け出すのではなく、明示的に`rparen()`を呼び出してreturnしていることに気がついたかもしれません。コードにswitch文が残っている場合、最後のreturnの前にある`scan(&Token)`は最初の'('にマッチする')'が必要であることを厳密に強制しないでしょう。
+
+`tests/input19.c`は括弧が動作するかテストしています。
+
+```c
+  a= 2; b= 4; c= 3; d= 2;
+  e= (a+b) * (c+d);
+  printint(e);
+```
+
+これは`6*5`であり、30が出力されるはずです。
+
+## シンボルテーブルの変更
+
+シンボルテーブルには（1つの値だけを持つ）スカラ変数と関数があります。これに配列を追加します。今後`sizeof()`オペレータを使って各配列の要素数を取得したくなるでしょう。`defs.h`の変更は次のようになります。
+
+```c
+// 構造上の型
+enum {
+  S_VARIABLE, S_FUNCTION, S_ARRAY
+};
+
+// シンボルテーブル構造体
+struct symtable {
+  char *name;                   // シンボル名
+  int type;                     // シンボルの基本型
+  int stype;                    // シンボルの構造上の型
+  int endlabel;                 // S_FUNCTION用エンドラベル
+  int size;                     // シンボルの要素数
+};
+```
+
+とりあえず配列はポインタとして処理し、配列の型は配列の要素が`int`であれば"intへのポインタ"のように、"何らかのポインタ"となります。`sym.c`のaddglob()に引数を追加する必要もあります。
+
+```c
+int addglob(char *name, int type, int stype, int endlabel, int size) {
+  ...
+}
+```
