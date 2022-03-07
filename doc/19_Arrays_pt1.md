@@ -127,3 +127,49 @@ int addglob(char *name, int type, int stype, int endlabel, int size) {
   ...
 }
 ```
+
+## 配列宣言のパース
+
+一旦サイズをつけた配列の宣言だけをできるようにします。変数宣言のBNF構文は次のようになります。
+
+```c
+ variable_declaration: type identifier ';'
+        | type identifier '[' P_INTLIT ']' ';'
+        ;
+```
+
+`decl.c`の`var_declaration()`で次のトークンがなにか確認し、スカラ変数宣言と配列宣言を処理する必要があります。
+
+```c
+// スカラ変数かサイズを指定した配列の宣言をパースする。
+// すでに識別子はスキャンされ型情報も持っている。
+void var_declaration(int type) {
+  int id;
+
+  // グローバル変数Textには識別子名が入っている。
+  // 次のトークンが '[' だった場合
+  if (Token.token == T_LBRACKET) {
+    // '['をスキップ
+    scan(&Token);
+
+    // 配列サイズがあるか調べる。
+    if (Token.token == T_INTLIT) {
+      // これを既知の配列とし、アセンブリにスペースを生成する。
+      // 配列をその要素の型を指すポインタとして処理する。
+      id = addglob(Text, pointer_to(type), S_ARRAY, 0, Token.intvalue);
+      genglobsym(id);
+    }
+
+    // ']' がついているか確認
+    scan(&Token);
+    match(T_RBRACKET, "]");
+  } else {
+    ...
+  }
+
+    // 後続のセミコロンを取得
+  semi();
+}
+```
+
+かなり単純なコードだと思います。後ほど配列宣言に初期化指定子を追加します。
