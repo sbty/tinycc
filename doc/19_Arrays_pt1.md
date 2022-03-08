@@ -173,3 +173,136 @@ void var_declaration(int type) {
 ```
 
 かなり単純なコードだと思います。後ほど配列宣言に初期化指定子を追加します。
+
+## 配列の保存先を生成
+
+配列のサイズがわかるようになったので`cgglobsym()`をアセンブリでそのサイズを確保するよう修正できます。
+
+```c
+void cgglobsym(int id) {
+  int typesize;
+  // 型のサイズを取得
+  typesize = cgprimsize(Gsym[id].type);
+
+  // グローバル識別子とそのラベルを生成
+  fprintf(Outfile, "\t.data\n" "\t.globl\t%s\n", Gsym[id].name);
+  fprintf(Outfile, "%s:", Gsym[id].name);
+
+  // スペースを生成
+  for (int i=0; i < Gsym[id].size; i++) {
+    switch(typesize) {
+      case 1: fprintf(Outfile, "\t.byte\t0\n"); break;
+      case 4: fprintf(Outfile, "\t.long\t0\n"); break;
+      case 8: fprintf(Outfile, "\t.quad\t0\n"); break;
+      default: fatald("cgglobsym 型のサイズが不明です: ", typesize);
+    }
+  }
+}
+```
+
+このスペースによって次のような配列宣言が可能です。
+
+```c
+  char a[10];
+  int  b[25];
+  long c[100];
+```
+
+## 配列インデックスのパース
+
+ここではあまり冒険はしたくありません。左辺値と右辺値として動作する基本的な配列インデックスに止めようと思います。`tests/input20.c`は実現したい機能が入っています。
+
+```c
+int a;
+int b[25];
+
+int main() {
+  b[3]= 12; a= b[3];
+  printint(a); return(0);
+}
+```
+
+CのBNF文法に戻ると、括弧よりも若干優先度が低い配列インデックスが確認できます。
+
+```c
+primary_expression
+        : IDENTIFIER
+        | CONSTANT
+        | STRING_LITERAL
+        | '(' expression ')'
+        ;
+
+postfix_expression
+        : primary_expression
+        | postfix_expression '[' expression ']'
+          ...
+```
+
+ですが今は配列インデックスも`primary()`関数でパースするつもりです。意味解析のコードは結局新しい関数を必要とするほど大きくなりました。
+
+```c
+static struct ASTnode *primary(void) {
+  struct ASTnode *n;
+  int id;
+
+  switch (Token.token) {
+  case T_IDENT:
+    // 変数、配列、関数呼び出しになり得る。
+    // 判定するため次のトークンをスキャンする。
+    scan(&Token);
+
+    // '(' なら関数呼び出し
+    if (Token.token == T_LPAREN) return (funccall());
+
+    // '[' なら配列参照
+    if (Token.token == T_LBRACKET) return (array_access());
+```
+
+以下は`array_access`関数です。
+
+```c
+// インデックスを配列へパースし、
+// そのASTツリーを返す。
+static struct ASTnode *array_access(void) {
+  struct ASTnode *left, *right;
+  int id;
+
+  // 識別子が配列として定義されているか確認し、
+  // その先頭を指す葉ノードを返す。
+  if ((id = findglob(Text)) == -1 || Gsym[id].stype != S_ARRAY) {
+    fatals("宣言されていない配列", Text);
+  }
+  left = mkastleaf(A_ADDR, Gsym[id].type, id);
+
+  // '[' を取得
+  scan(&Token);
+
+  // 後続の式をパース
+  right = binexpr(0);
+
+  // ']' を取得
+  match(T_RBRACKET, "]");
+
+  // int型であるか確認
+  if (!inttype(right->type))
+    fatal("配列インデックスが整数型ではありません");
+
+  // インデックスを要素の型のサイズでスケール
+  right = modify_type(right, left->type, A_ADD);
+
+  // 加算するオフセットを配列の先頭にオフセットが付加されたASTツリーを返し、
+  // 要素を間接参照する。この段階ではまだ左辺値。
+  // at this point.
+  left = mkastnode(A_ADD, Gsym[id].type, left, NULL, right, 0);
+  left = mkastunary(A_DEREF, value_at(left->type), left, 0);
+  return (left);
+}
+```
+
+配列`int x[20]`と配列インデックス`x[6]`の場合、インデックス(6)を`int`のサイズ(4)でスケールし、さらに配列の先頭のアドレスに加算する必要があります。それからこの要素は間接参照されます。次のことをできるようにしたいので左辺値としてマークしたままにしておきます。
+
+```c
+  x[6] = 100;
+```
+
+右辺値となる場合、`binexpre()`はA_DEREF ASTノードで`rvalue`フラグをセットすることになるでしょう。
