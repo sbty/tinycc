@@ -306,3 +306,46 @@ static struct ASTnode *array_access(void) {
 ```
 
 右辺値となる場合、`binexpre()`はA_DEREF ASTノードで`rvalue`フラグをセットすることになるでしょう。
+
+### 生成されたASTツリー
+
+`tests/input20.c`に戻り、配列インデックスを持つASTツリーを生成するコードは次のとおりです。
+
+```c
+  b[3]= 12; a= b[3];
+```
+
+`comp1 -T tests/input20.c`を実行すると次の結果が得られます。
+
+```c
+    A_INTLIT 12
+  A_WIDEN
+      A_ADDR b
+        A_INTLIT 3    # 3 is scaled by 4
+      A_SCALE 4
+    A_ADD             # and then added to b's address
+  A_DEREF             # and derefenced. Note, stll an lvalue
+A_ASSIGN
+
+      A_ADDR b
+        A_INTLIT 3    # As above
+      A_SCALE 4
+    A_ADD
+  A_DEREF rval        # but the dereferenced address will be an rvalue
+  A_IDENT a
+A_ASSIGN
+```
+
+### パースへの変更点他
+
+`expr.c`のパーサにいくつか小さな変更点があり、デバッグに時間がかかりました。オペレータ優先順位を調べる関数への入力をより制限する必要がありました。
+
+```c
+// 二項演算子であるか確認してその優先順位を返す。
+static int op_precedence(int tokentype) {
+  int prec;
+  if (tokentype >= T_VOID)
+    fatald("Token with no precedence in op_precedence:に優先順がない無いトークンです", tokentype);
+  ...
+}
+```
