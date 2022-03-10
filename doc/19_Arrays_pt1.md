@@ -345,7 +345,21 @@ A_ASSIGN
 static int op_precedence(int tokentype) {
   int prec;
   if (tokentype >= T_VOID)
-    fatald("Token with no precedence in op_precedence:に優先順がない無いトークンです", tokentype);
+    fatald("op_precedence:優先順が無いトークンです", tokentype);
   ...
 }
+```
+
+これ以外の変更点は式を配列インデックスとして使えるようになった(`x[a+1]`)ので、']'トークンが式を終わらせると備える必要があります。そのため`binexpr()`の終わりは次のようになります。
+
+```c
+    // 現在のトークンの詳細を更新する。
+    // セミコロン、')' 、 ']' のいずれかであれば左のノードを返す。
+    tokentype = Token.token;
+    if (tokentype == T_SEMI || tokentype == T_RPAREN
+        || tokentype == T_RBRACKET) {
+      left->rvalue = 1;
+      return (left);
+    }
+  }
 ```
